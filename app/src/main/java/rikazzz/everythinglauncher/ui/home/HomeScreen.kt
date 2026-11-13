@@ -98,13 +98,17 @@ import rikazzz.everythinglauncher.data.ScheduleEvent
 import rikazzz.everythinglauncher.data.ClockStyle
 import rikazzz.everythinglauncher.data.ClockColorPart
 import rikazzz.everythinglauncher.data.GraceButtonGesture
+import rikazzz.everythinglauncher.data.LauncherCustomPreferences
 import rikazzz.everythinglauncher.data.icons.GraceButtonIcon
 import rikazzz.everythinglauncher.ui.components.GraceButton
 import rikazzz.everythinglauncher.ui.components.GraceButtonOrigin
+import rikazzz.everythinglauncher.ui.components.AppIcon
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import rikazzz.everythinglauncher.data.nextVisibleEvent
@@ -138,7 +142,7 @@ import java.time.Instant
 import kotlin.math.roundToInt
 
 @Composable
-fun HomeScreen(
+internal fun HomeScreen(
     uiState: LauncherUiState,
     topSpace: Dp,
     onLaunchApp: (LauncherApp) -> Unit,
