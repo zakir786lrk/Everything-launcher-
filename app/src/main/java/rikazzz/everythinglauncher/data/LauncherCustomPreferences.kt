@@ -68,6 +68,27 @@ class LauncherCustomPreferences(context: Context) {
         get() = prefs.getBoolean("stop_favorites_scrolling_when_fitting", false)
         set(value) = prefs.edit().putBoolean("stop_favorites_scrolling_when_fitting", value).apply()
 
+    // Feed Screen
+    var feedScreenEnabled: Boolean
+        get() = prefs.getBoolean("feed_screen_enabled", true)
+        set(value) = prefs.edit().putBoolean("feed_screen_enabled", value).apply()
+
+    var feedDefaultTopic: String
+        get() = prefs.getString("feed_default_topic", "top") ?: "top"
+        set(value) = prefs.edit().putString("feed_default_topic", value).apply()
+
+    var feedRegion: String
+        get() = prefs.getString("feed_region", "US:en") ?: "US:en"
+        set(value) = prefs.edit().putString("feed_region", value).apply()
+
+    var feedShowSearchBar: Boolean
+        get() = prefs.getBoolean("feed_show_search_bar", true)
+        set(value) = prefs.edit().putBoolean("feed_show_search_bar", value).apply()
+
+    var feedShowWeather: Boolean
+        get() = prefs.getBoolean("feed_show_weather", true)
+        set(value) = prefs.edit().putBoolean("feed_show_weather", value).apply()
+
     // Icon Theming Fallback
     var useLetterFallbackForUnthemed: Boolean
         get() = prefs.getBoolean("use_letter_fallback_unthemed", false)

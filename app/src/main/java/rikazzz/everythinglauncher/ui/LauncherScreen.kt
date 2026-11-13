@@ -1,5 +1,8 @@
 package rikazzz.everythinglauncher.ui
 
+import rikazzz.everythinglauncher.ui.feed.FeedScreen
+import rikazzz.everythinglauncher.ui.settings.SettingsPage
+
 import android.Manifest
 import android.app.Activity
 import android.app.KeyguardManager
@@ -647,12 +650,29 @@ internal fun LauncherScreen(
     onCalendarHomeVisible: (Boolean) -> Unit = {},
 ) {
     var drawerOpen by rememberSaveable { mutableStateOf(initialDrawerOpen) }
-    val homePager = rememberPagerState { if (uiState.settings.widgetScreen.enabled) 2 else 1 }
+    val context = LocalContext.current
+    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
+    val feedEnabled = customPrefs.feedScreenEnabled
+    val widgetEnabled = uiState.settings.widgetScreen.enabled
+    val homeIndex = if (feedEnabled) 1 else 0
+    val widgetIndex = if (feedEnabled) 2 else 1
+    val pageCount = (if (feedEnabled) 1 else 0) + 1 + (if (widgetEnabled) 1 else 0)
+
+    val homePager = rememberPagerState(initialPage = homeIndex) { pageCount }
     val pageScope = rememberCoroutineScope()
     var editingWidgetScreen by rememberSaveable { mutableStateOf(false) }
     var editingHomeContent by remember { mutableStateOf(false) }
-    LaunchedEffect(uiState.settings.widgetScreen.enabled) {
-        if (!uiState.settings.widgetScreen.enabled) { editingWidgetScreen = false; homePager.scrollToPage(0) }
+    LaunchedEffect(feedEnabled) {
+        val target = if (feedEnabled) 1 else 0
+        homePager.scrollToPage(target)
+    }
+    LaunchedEffect(widgetEnabled) {
+        if (!widgetEnabled) {
+            editingWidgetScreen = false
+            if (homePager.currentPage == widgetIndex) {
+                homePager.scrollToPage(homeIndex)
+            }
+        }
     }
     var selectedLetter by remember { mutableStateOf<String?>(null) }
     var overlay by remember { mutableStateOf<LauncherOverlay?>(null) }
@@ -711,11 +731,9 @@ internal fun LauncherScreen(
     val drawerState = rememberLazyListState()
     val appearance = rememberLauncherAppearance(uiState.textMode, uiState.themedIcons,
         uiState.settings.iconDesign?.design?.iconSize ?: 100, uiState.settings.iconDisplay)
-    val context = LocalContext.current
-    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val calendarHomeVisible = !drawerOpen && overlay == null && !systemActionAccess &&
-        homePager.settledPage == 0 && !homePager.isScrollInProgress
+        homePager.settledPage == homeIndex && !homePager.isScrollInProgress
     val reportCalendarHomeVisible by rememberUpdatedState(onCalendarHomeVisible)
     DisposableEffect(lifecycle, calendarHomeVisible) {
         fun updateHomeVisibility() {
@@ -862,13 +880,13 @@ internal fun LauncherScreen(
             firstItemJob?.cancel()
             drawerOpen = false; selectedLetter = null; overlay = null; editingHome = false
             editingWidgetScreen = false
-            homePager.scrollToPage(0)
+            homePager.scrollToPage(homeIndex)
             if (buttonTransition?.lockCommitted != true) buttonTransition = null
         }
     }
     LaunchedEffect(widgetEditRequest) {
         if (widgetEditRequest > 0) {
-            homePager.scrollToPage(0); editingWidgetScreen = false
+            homePager.scrollToPage(homeIndex); editingWidgetScreen = false
             drawerOpen = false; selectedLetter = null; overlay = null; editingHome = true
         }
     }
@@ -880,7 +898,7 @@ internal fun LauncherScreen(
             overlay != null -> overlay = (overlay as? LauncherOverlay.AppDetails)?.returnTo
             editingHome -> editingHome = false
             editingWidgetScreen -> editingWidgetScreen = false
-            homePager.currentPage != 0 -> pageScope.launch { homePager.animateScrollToPage(0) }
+            homePager.currentPage != homeIndex -> pageScope.launch { homePager.animateScrollToPage(homeIndex) }
             selectedLetter != null -> selectedLetter = null
             else -> drawerOpen = false
         }
@@ -928,7 +946,7 @@ internal fun LauncherScreen(
         selectedLetter = null
         // The star still means Favorites, including when scrubbing began on Widget screen.
         // Wait for release so changing pages cannot interrupt the alphabet pointer stream.
-        if (!drawerOpen && homePager.currentPage != 0) pageScope.launch { homePager.animateScrollToPage(0) }
+        if (!drawerOpen && homePager.currentPage != homeIndex) pageScope.launch { homePager.animateScrollToPage(homeIndex) }
     }
     val popupSettings = uiState.settings.shortcutsFolders
     LaunchedEffect(popupSettings.enabled) {
@@ -1185,10 +1203,9 @@ internal fun LauncherScreen(
         CompositionLocalProvider(LocalHomeAnimationTarget provides true) {
           HorizontalPager(
             state = homePager, beyondViewportPageCount = 1,
-            userScrollEnabled = uiState.settings.widgetScreen.enabled &&
-                (uiState.settings.widgetScreen.swipeToOpen || homePager.currentPage == 1) &&
-                !drawerOpen && overlay == null && !editingHome && !editingWidgetScreen && !editingHomeContent &&
-                buttonTransition == null && !systemActionAccess,
+            userScrollEnabled = !drawerOpen && overlay == null && !editingHome && !editingWidgetScreen && !editingHomeContent &&
+                buttonTransition == null && !systemActionAccess &&
+                (homePager.currentPage != homeIndex || (feedEnabled || (widgetEnabled && uiState.settings.widgetScreen.swipeToOpen))),
             modifier = Modifier.fillMaxSize().testTag("home_pages")
                 .retainedPage(visible = !drawerOpen || homeVisibility > 0f || drawerTransition != null)
                 .then(if (drawerOpen) Modifier.clearAndSetSemantics {} else Modifier)
@@ -1199,7 +1216,24 @@ internal fun LauncherScreen(
                 .graceReveal(drawerTransition, reveal = false)
                 .then(if (drawerTransition != null) Modifier.background(homeScrim) else Modifier).statusBarContentFade(),
           ) { page ->
-           if (page == 0) {
+           if (feedEnabled && page == 0) {
+            CompositionLocalProvider(LocalHomeAnimationTarget provides false) {
+             FeedScreen(
+                 uiState = uiState,
+                 customPrefs = customPrefs,
+                 statusBarHeight = statusBarHeight,
+                 bottomInset = bottomInset,
+                 onOpenSearch = { overlay = LauncherOverlay.Search },
+                 onVoiceSearch = { query ->
+                     overlay = LauncherOverlay.Search
+                     searchQuery.edit { replace(0, length, query) }
+                 },
+                 onOpenSettings = { overlay = LauncherOverlay.SettingsDestination(SettingsPage.FeedScreen.name) },
+                 onWeatherClick = actions.openWeatherApp,
+                 modifier = Modifier.fillMaxSize()
+             )
+            }
+           } else if (page == homeIndex) {
             HomeScreen(
                 uiState = uiState,
                 topSpace = homeTop,
@@ -1218,9 +1252,9 @@ internal fun LauncherScreen(
                 onWidgetEditingChange = { editingHomeContent = it },
                 editingLayout = editingHome,
                 widgetInputEnabled = !drawerOpen && overlay == null && buttonTransition == null && !systemActionAccess &&
-                    homePager.settledPage == 0 && !homePager.isScrollInProgress,
+                    homePager.settledPage == homeIndex && !homePager.isScrollInProgress,
                 onHomeGesture = { gesture, position ->
-                    if (!drawerOpen && overlay == null && !editingHome && homePager.currentPage == 0 && !homePager.isScrollInProgress) {
+                    if (!drawerOpen && overlay == null && !editingHome && homePager.currentPage == homeIndex && !homePager.isScrollInProgress) {
                         val origin = GraceButtonOrigin(Rect(position.x - homeGestureRadius, position.y - homeGestureRadius,
                             position.x + homeGestureRadius, position.y + homeGestureRadius))
                         performGestureAction(uiState.settings.homeGestures.target(gesture), origin, fromButton = false)
@@ -1243,7 +1277,7 @@ internal fun LauncherScreen(
             CompositionLocalProvider(LocalHomeAnimationTarget provides false) {
             WidgetScreen(uiState, actions, statusBarHeight, bottomInset, editingWidgetScreen,
                 enabled = !drawerOpen && overlay == null && !systemActionAccess && buttonTransition == null &&
-                    homePager.settledPage == 1 && !homePager.isScrollInProgress,
+                    homePager.settledPage == widgetIndex && !homePager.isScrollInProgress,
                 onEditingChange = { editingWidgetScreen = it },
                 onEdit = { editingWidgetScreen = false; overlay = LauncherOverlay.SettingsDestination("WidgetScreenEditor") },
                 onLaunchApp = onLaunchApp, onAppDetails = { overlay = LauncherOverlay.AppDetails(it) },
@@ -1310,7 +1344,7 @@ internal fun LauncherScreen(
         )
         val showHomeAlphabet = alphabet.showsOnHome(uiState.settings.hideAlphabet)
         if (!editingHome) AlphabetRail(
-            enabled = !homePager.isScrollInProgress && !editingWidgetScreen && !editingHomeContent,
+            enabled = !homePager.isScrollInProgress && !editingWidgetScreen && !editingHomeContent && homePager.currentPage == homeIndex,
             alphabet = alphabet,
             leftTouchEnabled = uiState.settings.listAppearance.leftAlphabet,
             letters = model.letters,
@@ -1345,11 +1379,11 @@ internal fun LauncherScreen(
                 performGestureAction(uiState.settings.homeGestures.alphabetDoubleTap, origin, fromButton = false)
             } else null,
             // Widget screen always hides the idle glyphs; its edge touch areas stay active.
-            autoHide = if (drawerOpen) !alphabet.showInAppList else !showHomeAlphabet || homePager.currentPage == 1,
+            autoHide = if (drawerOpen) !alphabet.showInAppList else !showHomeAlphabet || homePager.currentPage != homeIndex,
         )
         val hasFixedDock = customPrefs.fixedDockStackId != null && uiState.folders.any { it.id == customPrefs.fixedDockStackId && it.isAppStack }
         val showFloatingGraceButton = if (!drawerOpen && hasFixedDock) false else {
-            !editingWidgetScreen && !editingHomeContent && ((!drawerOpen && editingHome) || uiState.settings.graceButton.isVisible(drawerOpen))
+            !editingWidgetScreen && !editingHomeContent && homePager.currentPage == homeIndex && ((!drawerOpen && editingHome) || uiState.settings.graceButton.isVisible(drawerOpen))
         }
         if (showFloatingGraceButton) {
             val buttonBounds = uiState.settings.graceButton.layout.bounds(maxWidth.value, maxHeight.value,

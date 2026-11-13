@@ -152,8 +152,10 @@ internal fun ProductivitySettings(
                     leading = { LauncherIcon(LauncherSymbol.Widgets) }) { navigate(SettingsPage.WidgetScreen) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.settings_feed_screen), null, 4, 6, "settings_feed_screen",
-                    leading = { LauncherIcon(LauncherSymbol.Category) }) { navigate(SettingsPage.FeedScreen) }
+                SettingsActionItem(stringResource(R.string.settings_feed_screen),
+                    if (customPrefs.feedScreenEnabled) stringResource(R.string.feed_screen_swipe) else stringResource(R.string.feed_screen_swipe_disabled),
+                    4, 6, "settings_feed_screen",
+                    leading = { LauncherIcon(LauncherSymbol.Outbound) }) { navigate(SettingsPage.FeedScreen) }
             }
             item {
                 SettingsActionItem(stringResource(R.string.settings_status_screen), null, 5, 6, "settings_status_screen",

@@ -4,6 +4,8 @@ package rikazzz.everythinglauncher.ui.settings
 
 import android.net.Uri
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.ui.platform.LocalContext
+import rikazzz.everythinglauncher.data.LauncherCustomPreferences
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -160,6 +162,8 @@ fun LauncherSettingsScreen(
     val storage = SettingsStorageState(
         uiState.isLoadingSettings, uiState.settingsLoadFailed, uiState.settingsSaveFailed,
     )
+    val context = LocalContext.current
+    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
     val reportSystemBarBackground by rememberUpdatedState(LocalSettingsSystemBarBackground.current)
     DisposableEffect(Unit) { onDispose { reportSystemBarBackground(SettingsSystemBarBackground.Surface) } }
     MaterialTheme(typography = if (uiState.settings.applyFontToSettings) LocalLauncherTypography.current else SystemLauncherTypography) {
@@ -229,7 +233,7 @@ fun LauncherSettingsScreen(
                     SettingsPage.Homepage -> rikazzz.everythinglauncher.ui.overlays.HomepageEditorScreen(
                         uiState, actions, actions.toggleFavorite, actions.reorderFavorites, onDone = back)
                     SettingsPage.AppList -> rikazzz.everythinglauncher.ui.overlays.AppListEditorScreen(uiState, actions, back)
-                    SettingsPage.FeedScreen -> SettingsPlaceholder(stringResource(R.string.settings_feed_screen), "feed_screen_settings", back)
+                    SettingsPage.FeedScreen -> FeedSettingsPage(customPrefs, back)
                     SettingsPage.StatusScreen -> SettingsPlaceholder(stringResource(R.string.settings_status_screen), "status_screen_settings", back)
                     SettingsPage.Clock -> ClockSettings(uiState, actions, back) { navigate(SettingsPage.ClockStyle) }
                     SettingsPage.CustomShortcuts -> ActivityLauncherScreen(onBack = back)
