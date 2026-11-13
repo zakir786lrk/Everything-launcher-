@@ -54,6 +54,20 @@ class LauncherCustomPreferences(context: Context) {
         get() = prefs.getBoolean("stack_labels_enabled", true)
         set(value) = prefs.edit().putBoolean("stack_labels_enabled", value).apply()
 
+    var dockBackgroundEnabled: Boolean
+        get() = prefs.getBoolean("dock_background_enabled", false)
+        set(value) = prefs.edit().putBoolean("dock_background_enabled", value).apply()
+
+    // Home Wallpaper Dimming
+    var dimHomeScreenWallpaper: Boolean
+        get() = prefs.getBoolean("dim_home_screen_wallpaper", true)
+        set(value) = prefs.edit().putBoolean("dim_home_screen_wallpaper", value).apply()
+
+    // Icon Theming Fallback
+    var useLetterFallbackForUnthemed: Boolean
+        get() = prefs.getBoolean("use_letter_fallback_unthemed", false)
+        set(value) = prefs.edit().putBoolean("use_letter_fallback_unthemed", value).apply()
+
     // Quick Search features
     var searchCalculatorEnabled: Boolean
         get() = prefs.getBoolean("search_calculator_enabled", true)

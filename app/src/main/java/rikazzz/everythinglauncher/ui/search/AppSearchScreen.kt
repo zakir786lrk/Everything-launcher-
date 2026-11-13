@@ -1,11 +1,16 @@
 package rikazzz.everythinglauncher.ui.search
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -129,6 +134,29 @@ internal fun AppSearchScreen(
     val contacts by produceState(emptyList<SearchContact>(), settings.enabled, settings.contacts, hasContactsAccess) {
         value = emptyList()
         if (settings.enabled && settings.contacts && hasContactsAccess) contactsSource.observe().collect { value = it }
+    }
+
+    var pendingCallNumber by remember { mutableStateOf("") }
+    val callPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (pendingCallNumber.isNotEmpty()) {
+            val intent = if (granted) {
+                Intent(Intent.ACTION_CALL, Uri.parse("tel:$pendingCallNumber")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            } else {
+                Intent(Intent.ACTION_DIAL, Uri.parse("tel:$pendingCallNumber")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$pendingCallNumber")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            }
+            pendingCallNumber = ""
+        }
     }
 
     var webSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -384,11 +412,22 @@ internal fun AppSearchScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(
                                         onClick = {
-                                            val intent = Intent(Intent.ACTION_DIAL).apply {
-                                                if (phoneNum.isNotEmpty()) data = Uri.parse("tel:$phoneNum")
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            if (phoneNum.isNotEmpty()) {
+                                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+                                                    try {
+                                                        context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$phoneNum")).apply {
+                                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        })
+                                                    } catch (e: Exception) {
+                                                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNum")).apply {
+                                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        })
+                                                    }
+                                                } else {
+                                                    pendingCallNumber = phoneNum
+                                                    callPermissionLauncher.launch(Manifest.permission.CALL_PHONE)
+                                                }
                                             }
-                                            context.startActivity(intent)
                                         },
                                         modifier = Modifier.size(36.dp)
                                     ) {

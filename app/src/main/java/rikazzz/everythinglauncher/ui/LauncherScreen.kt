@@ -1068,8 +1068,11 @@ internal fun LauncherScreen(
         else -> drawerVisibility
     }
     WallpaperBlur(if (uiState.settings.blurWallpaper) uiState.settings.wallpaperBlurRadius.dp * wallpaperEffectVisibility else 0.dp)
+    val homeDimAmount = if (uiState.settings.dimWallpaper && customPrefs.dimHomeScreenWallpaper && !fullScreen) {
+        uiState.settings.wallpaperDimAmount.coerceIn(0, 100) / 100f
+    } else 0f
     val dimAlpha = if (uiState.settings.dimWallpaper) {
-        uiState.settings.wallpaperDimAmount.coerceIn(0, 100) / 100f * wallpaperEffectVisibility
+        maxOf(homeDimAmount, uiState.settings.wallpaperDimAmount.coerceIn(0, 100) / 100f * wallpaperEffectVisibility)
     } else 0f
     // Preserve the existing subtle contrast treatment on HOME. The app list
     // gets only the optional primary-tinted overlay, never this black scrim.

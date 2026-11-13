@@ -400,6 +400,7 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
     val context = LocalContext.current
     val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
     var isFixedDock by remember(folder.id, customPrefs.fixedDockStackId) { mutableStateOf(customPrefs.fixedDockStackId == folder.id) }
+    var dockBgEnabled by remember { mutableStateOf(customPrefs.dockBackgroundEnabled) }
     var rename by rememberSaveable(folder.id) { mutableStateOf(false) }
     var placement by rememberSaveable(folder.id) { mutableStateOf(false) }
     var confirmDelete by rememberSaveable(folder.id) { mutableStateOf(false) }
@@ -420,10 +421,21 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
                 SettingsToggleItem(
                     "Fix at Bottom as Dock",
                     "Fix at bottom as home dock (up to 5 items). When enabled, the Grace button will move to the dock.",
-                    isFixedDock, 3, 4, "stack_fix_dock"
+                    isFixedDock, 3, if (isFixedDock) 5 else 4, "stack_fix_dock"
                 ) { checked ->
                     isFixedDock = checked
                     customPrefs.fixedDockStackId = if (checked) folder.id else null
+                }
+                if (isFixedDock) {
+                    Spacer(Modifier.height(ListItemDefaults.SegmentedGap))
+                    SettingsToggleItem(
+                        "Dock Background",
+                        "Show translucent background pill behind fixed dock apps",
+                        dockBgEnabled, 4, 5, "stack_dock_bg"
+                    ) { checked ->
+                        dockBgEnabled = checked
+                        customPrefs.dockBackgroundEnabled = checked
+                    }
                 }
             }
             TextButton(onClick = { confirmDelete = true }, enabled = LocalSettingsStorageState.current.canEdit, modifier = Modifier.testTag("folder_delete")) {

@@ -99,6 +99,17 @@ internal fun renderDesignedIcon(layers: IconLayers, design: IconDesign, dynamicB
     return output
 }
 
+private fun hasOpaqueCorners(bitmap: Bitmap): Boolean {
+    val w = bitmap.width
+    val h = bitmap.height
+    if (w < 8 || h < 8) return false
+    val c1 = (bitmap.getPixel(w / 8, h / 8) ushr 24)
+    val c2 = (bitmap.getPixel(7 * w / 8, h / 8) ushr 24)
+    val c3 = (bitmap.getPixel(w / 8, 7 * h / 8) ushr 24)
+    val c4 = (bitmap.getPixel(7 * w / 8, 7 * h / 8) ushr 24)
+    return c1 > 200 && c2 > 200 && c3 > 200 && c4 > 200
+}
+
 /** Draw the same layers directly for previews; moving a symbol must not allocate a bitmap every frame. */
 internal fun drawDesignedIcon(canvas: Canvas, layers: IconLayers, design: IconDesign, dynamicBackground: Int, dynamicForeground: Int,
     themeBackground: Int = dynamicBackground, themeForeground: Int = dynamicForeground, appColors: Pair<Int, Int>? = null,
@@ -114,7 +125,9 @@ internal fun drawDesignedIcon(canvas: Canvas, layers: IconLayers, design: IconDe
         canvas.restoreToCount(checkpoint)
         return
     }
-    val mask = if (style.shape == IconShape.None) layers.originalMask ?: if (style.addTray)
+    val iconIsOpaque = hasOpaqueCorners(layers.original)
+    val applyTray = style.addTray && !iconIsOpaque
+    val mask = if (style.shape == IconShape.None) layers.originalMask ?: if (applyTray)
         iconShapePath(IconShape.Circle, size = side.toFloat()) else null
         else iconShapePath(style.shape, style.cookieSides, side.toFloat(), style.pebbleRoundness, style.squareCornerRadius, style.squareAspectRatio)
     mask?.let(canvas::clipPath)
@@ -124,14 +137,14 @@ internal fun drawDesignedIcon(canvas: Canvas, layers: IconLayers, design: IconDe
     if (layers.layered) {
         if (canTheme && background != null) canvas.drawColor(background)
         else layers.background?.let { canvas.drawBitmap(it, 0f, 0f, paint) }
-    } else if (style.addTray) {
+    } else if (applyTray) {
         background?.let(canvas::drawColor)
     } else if (canTheme && layers.monochrome != null && background != null) {
         // A flat monochrome pack still has a themeable symbol and needs its theme tray.
         if (style.shape == IconShape.None) canvas.clipPath(iconShapePath(IconShape.Circle, size = side.toFloat()))
         canvas.drawColor(background)
     }
-    val scale = style.size / 100f * if (style.addTray && !layers.layered) .8f else 1f
+    val scale = style.size / 100f * if (applyTray && !layers.layered) .8f else 1f
     val centerX = side * (0.5f + style.x / 100f)
     val centerY = side * (0.5f + style.y / 100f)
     val half = side * scale / 2f
@@ -151,32 +164,63 @@ private fun hasVisibleSymbol(bitmap: Bitmap): Boolean {
 internal fun normalizedMonochrome(bitmap: Bitmap, invert: Boolean = false): Bitmap {
     val pixels = IntArray(bitmap.width * bitmap.height)
     bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-    return Bitmap.createBitmap(monochromeMaskPixels(pixels, invert), bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+    return Bitmap.createBitmap(monochromeMaskPixels(pixels, invert, bitmap.width, bitmap.height), bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
 }
 
 /** ARGB-in/alpha-mask-out, kept independent of Bitmap for pixel-level regression tests. */
-internal fun monochromeMaskPixels(pixels: IntArray, invert: Boolean = false): IntArray {
+internal fun monochromeMaskPixels(pixels: IntArray, invert: Boolean = false, width: Int = 0, height: Int = 0): IntArray {
     val peakAlpha = pixels.maxOfOrNull { it ushr 24 } ?: 0
     if (peakAlpha == 0) return IntArray(pixels.size)
     fun luminance(color: Int): Float = .2126f * ((color ushr 16) and 255) +
         .7152f * ((color ushr 8) and 255) + .0722f * (color and 255)
     var low = 255f
     var high = 0f
-    // Unpremultiplying almost-transparent edge pixels can produce extreme RGB
-    // values. Using them as endpoints leaves the real background partly opaque.
-    // Most-opaque samples provide stable endpoints, also for translucent images.
     for (color in pixels) if (color ushr 24 == peakAlpha) {
         val gray = luminance(color)
         low = minOf(low, gray); high = maxOf(high, gray)
     }
     val span = high - low
+
+    // Auto-detect if foreground symbol is lighter than the background tile
+    var effectiveInvert = invert
+    if (!invert && width > 4 && height > 4 && pixels.size == width * height) {
+        var borderSum = 0f
+        var borderCount = 0
+        var centerSum = 0f
+        var centerCount = 0
+        val midX = width / 2
+        val midY = height / 2
+        val radX = width / 4
+        val radY = height / 4
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val color = pixels[y * width + x]
+                if (color ushr 24 == peakAlpha) {
+                    val lum = luminance(color)
+                    if (x < 4 || x >= width - 4 || y < 4 || y >= height - 4) {
+                        borderSum += lum
+                        borderCount++
+                    } else if (abs(x - midX) < radX && abs(y - midY) < radY) {
+                        centerSum += lum
+                        centerCount++
+                    }
+                }
+            }
+        }
+        if (borderCount > 0 && centerCount > 0) {
+            val avgBorder = borderSum / borderCount
+            val avgCenter = centerSum / centerCount
+            if (avgBorder < avgCenter - 20f) {
+                effectiveInvert = true
+            }
+        }
+    }
+
     return IntArray(pixels.size) { index ->
         val color = pixels[index]
-        // With no contrast to separate, preserve the source silhouette. Keep
-        // continuous coverage for antialiasing; do not threshold the symbol edge.
         val coverage = if (span <= .001f) 1f else {
             val light = ((luminance(color) - low) / span).coerceIn(0f, 1f)
-            if (invert) light else 1f - light
+            if (effectiveInvert) light else 1f - light
         }
         val alpha = ((color ushr 24) * coverage).roundToInt().coerceIn(0, 255)
         if (alpha == 0) 0 else (alpha shl 24) or 0x00ffffff

@@ -726,16 +726,23 @@ private fun FixedDock(
         list
     }
 
+    val dockBgModifier = if (customPrefs.dockBackgroundEnabled) {
+        Modifier
+            .clip(RoundedCornerShape(displayedIconSize / 2 + 12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.25f))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    } else {
+        Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+    }
+
     Box(
         modifier = modifier
             .wrapContentWidth()
-            .clip(RoundedCornerShape(displayedIconSize / 2 + 12.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.25f))
+            .then(dockBgModifier)
             .combinedClickable(
                 onClick = {},
                 onLongClick = onEditFolder
-            )
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            ),
         contentAlignment = Alignment.Center
     ) {
         Row(

@@ -38,6 +38,9 @@ internal fun WallpaperSettings(
 ) {
     val settings = uiState.settings
     val defaults = remember { LauncherSettings() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    var dimHome by remember { mutableStateOf(customPrefs.dimHomeScreenWallpaper) }
     var colorOpen by rememberSaveable { mutableStateOf(false) }
     var dimColor by remember(settings.listAppearance.wallpaperDimColor) { mutableStateOf(settings.listAppearance.wallpaperDimColor) }
     val controlsState = rememberLazyListState()
@@ -90,11 +93,16 @@ internal fun WallpaperSettings(
                             onAmount = { value -> actions.updateSettings { it.copy(wallpaperDimAmount = value) } }) {
                             SettingsActionItem(stringResource(R.string.settings_wallpaper_dim_color),
                                 if (dimColor == null) stringResource(R.string.settings_wallpaper_dim_color_auto) else null,
-                                0, 1, "settings_dim_wallpaper_color", modifier = colorModifier, trailing = {
+                                0, 2, "settings_dim_wallpaper_color", modifier = colorModifier, trailing = {
                                     Surface(Modifier.size(24.dp), shape = MaterialTheme.shapes.small,
                                         color = dimColor?.resolve(primary.toArgb(), colorScheme = MaterialTheme.colorScheme)
                                             ?.let(::Color) ?: automaticDimTint) {}
                                 }, onClick = { colorOpen = true })
+                            SettingsToggleItem("Dim on Home Screen", "Also apply wallpaper dimming on the home screen",
+                                dimHome, 1, 2, "settings_dim_home_wallpaper") {
+                                dimHome = it
+                                customPrefs.dimHomeScreenWallpaper = it
+                            }
                         }
                     }
                     item("blur") {

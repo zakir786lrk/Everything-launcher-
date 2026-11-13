@@ -127,6 +127,8 @@ internal fun IconBadge(app: LauncherApp, badgeSize: Dp, modifier: Modifier = Mod
 fun AppIcon(app: LauncherApp, modifier: Modifier = Modifier, size: Dp = 38.dp, applyDisplaySize: Boolean = true,
     display: IconDisplaySettings = IconDisplaySettings()) {
     val appearance = LocalLauncherAppearance.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
     val displaySize = size * if (applyDisplaySize) appearance.iconSize / 100f else 1f
     val style = display.style
     val iconModifier = if (app.folderId == null) modifier.launcherAnimationTarget(
@@ -161,6 +163,22 @@ fun AppIcon(app: LauncherApp, modifier: Modifier = Modifier, size: Dp = 38.dp, a
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer),
                         // Adaptive monochrome drawables include the platform's safe-zone inset.
                         modifier = Modifier.size(displaySize).graphicsLayer { scaleX = app.monochromeScale; scaleY = app.monochromeScale },
+                    )
+                }
+            }
+            appearance.themedIcons && customPrefs.useLetterFallbackForUnthemed && app.folderId == null -> {
+                Box(
+                    Modifier.size(displaySize).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val initial = app.label.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "?"
+                    Text(
+                        text = initial,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            fontSize = (displaySize.value * 0.46f).sp
+                        ),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }

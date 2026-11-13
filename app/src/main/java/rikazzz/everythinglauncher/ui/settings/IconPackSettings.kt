@@ -49,6 +49,10 @@ import kotlinx.coroutines.isActive
 internal fun IconPackSettings(uiState: LauncherUiState, actions: LauncherActions, onBack: () -> Unit, onDesigner: () -> Unit) {
     val selected = uiState.settings.enabledIconPackPackages
     val installed = uiState.iconPacks.associateBy { it.packageName }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    var letterFallback by remember { mutableStateOf(customPrefs.useLetterFallbackForUnthemed) }
+    val unthemedApps = remember(uiState.allApps) { uiState.allApps.filter { it.monochromeIcon == null && it.folderId == null } }
     val list = rememberLazyListState()
     val query = rememberTextFieldState()
     val search = query.text.toString().trim()
@@ -107,6 +111,25 @@ internal fun IconPackSettings(uiState: LauncherUiState, actions: LauncherActions
                         Text(stringResource(R.string.icon_designer_title), style = MaterialTheme.typography.titleMedium)
                     }
                 }
+            }
+            item(key = "letter_fallback") {
+                SettingsToggleItem(
+                    "Letter Avatar Fallback",
+                    "Use clean themed letter avatars for apps lacking monochrome/themed icons",
+                    letterFallback, 0, 2, "letter_fallback_unthemed"
+                ) { checked ->
+                    letterFallback = checked
+                    customPrefs.useLetterFallbackForUnthemed = checked
+                }
+            }
+            item(key = "unthemed_coverage") {
+                SettingsActionItem(
+                    "Unthemed Icons (${unthemedApps.size} apps)",
+                    "View and customize apps that are missing themed icons in Icon Designer",
+                    1, 2, "unthemed_icons_action",
+                    leading = { LauncherIcon(LauncherSymbol.Apps) },
+                    onClick = onDesigner
+                )
             }
             item(key = "selected_heading") { SettingsHeading(stringResource(R.string.icon_pack_enabled)) }
             items(reorder.keys, key = { FavoritesReorderState.itemKey(it) }, contentType = { "selected" }) { packageName ->

@@ -416,9 +416,9 @@ private fun SettingsHome(
     val showDefaultHomeBanner = isDefaultHome == false
     val languageTag by rememberAppLanguage()
     val categories = listOf(
-        SettingsPage.CustomShortcuts to LauncherSymbol.Steppers,
         SettingsPage.Productivity to LauncherSymbol.Star,
         SettingsPage.Themes to LauncherSymbol.Palette,
+        SettingsPage.CustomShortcuts to LauncherSymbol.Steppers,
         SettingsPage.Advanced to LauncherSymbol.Settings,
         SettingsPage.Language to LauncherSymbol.Language,
         SettingsPage.About to LauncherSymbol.Info,
