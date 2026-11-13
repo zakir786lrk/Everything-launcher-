@@ -1,98 +1,106 @@
 <div align="center">
-  <img src="design/icon/app-icon.svg" width="128" alt="Grace Launcher icon">
+  <img src="design/icon/app-icon.svg" width="128" alt="Everything Launcher Icon">
 
-  <h1>Grace Launcher</h1>
+  <h1>Everything Launcher</h1>
 
-  <p>English | <a href="README.zh-CN.md">简体中文</a></p>
+  <p><strong>The fast, minimalist, and truly universal Android launcher.</strong></p>
 
-  <p><strong>Your home screen, your design.</strong></p>
   <div>
-    <a href="https://github.com/Galaxy-rio/GraceLauncher/stargazers"><img width="268" src="https://m3-markdown-badges.vercel.app/stars/7/2/Galaxy-rio/GraceLauncher" alt="GitHub stars"></a>
-    <a href="https://github.com/Galaxy-rio/GraceLauncher/issues"><img width="266" src="https://m3-markdown-badges.vercel.app/issues/9/2/Galaxy-rio/GraceLauncher" alt="Open issues"></a>
+    <a href="https://developer.android.com/about/versions/pie"><img height="28" src="https://img.shields.io/badge/Android-9.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 9+"></a>
+    <a href="https://kotlinlang.org/"><img height="28" src="https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin"></a>
+    <a href="https://developer.android.com/jetpack/compose"><img height="28" src="https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white" alt="Jetpack Compose"></a>
+    <a href="LICENSE"><img height="28" src="https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square" alt="GPL-3.0 License"></a>
   </div>
-  <div>
-    <a href="https://developer.android.com/about/versions/pie"><img height="30" src="https://ziadoua.github.io/m3-Markdown-Badges/badges/Android/android2.svg" alt="Android 9 or later"></a>
-    <a href="https://developer.android.com/studio"><img height="30" src="https://ziadoua.github.io/m3-Markdown-Badges/badges/AndroidStudio/androidstudio3.svg" alt="Android Studio"></a>
-    <a href="https://kotlinlang.org/"><img height="30" src="https://ziadoua.github.io/m3-Markdown-Badges/badges/Kotlin/kotlin2.svg" alt="Kotlin"></a>
-    <a href="LICENSE"><img height="30" src="https://ziadoua.github.io/m3-Markdown-Badges/badges/LicenceGPLv3/licencegplv32.svg" alt="GPL-3.0 license"></a>
-  </div>
-  <p>
-    <a href="https://github.com/Galaxy-rio/GraceLauncher/releases"><img width="153" align="middle" src="https://ziadoua.github.io/m3-Markdown-Badges/badges/Github/github2.svg" alt="GitHub Releases"></a>
-    <a href="https://f-droid.org/packages/rikazzz.everythinglauncher/"><img height="60" align="middle" src="https://f-droid.org/badge/get-it-on.svg" alt="Get it on F-Droid"></a>
-  </p>
-  <p>A free and open-source Android launcher with a simple app list, customizable icons and fonts, a clock widget you can design yourself, and no tracking.</p>
+
+  <p>Everything Launcher brings together ultra-fast universal search, hidden activity launching, intelligent contact actions, a clean auto-centering dock with the Grace action button, and deep customization without ads or telemetry.</p>
 </div>
 
-## Features
+---
 
-- **Find apps quickly** — keep favorites on your home screen, organize apps into folders, and browse an alphabetical app list.
-- **Choose your icon packs and fonts** — combine installed icon packs, set their priority, and import custom fonts for the launcher and clock.
-- **Icon Designer** — redesign every app icon individually using an icon pack or a custom image, with control over shape, colors, size, and position.
-- **Clock Widget** — design your own home screen clock widget with custom layouts, fonts, weight, size, spacing, and shadows.
-- **Explore more customization** — use Material You and dynamic colors, choose light or dark themes, and control background blur strength.
-- **Customize app shortcuts and widgets** — edit app shortcut popups with your choice of apps and shortcuts, place widgets inside them, or add and resize a widget on the home screen.
-- **Keep your day in view** — read notifications on the home screen and check an integrated calendar agenda with weather forecasts.
-- **Control your music** — manage active media playback directly from the home screen.
-- **Stay private** — no advertising, tracking, or network permission; launcher data stays on your device.
+## 🌟 Key Features
 
-Built with Kotlin, Jetpack Compose, and Material You. The list-based layout takes inspiration from [Niagara Launcher](https://niagaralauncher.app/).
+### 🔍 Spotlight Universal Search
+- **Live Math & Percentage Calculator**: Type arithmetic expressions and percentage phrases (e.g. `15% of 250`, `20% off 80`, `(45 * 12) / 3`) with instant calculation and copy-to-clipboard.
+- **System Settings Search**: Search and jump directly into Android system settings (Wi-Fi, Bluetooth, Hotspot, Display, Battery, Sound, Storage, Developer Options, and more).
+- **Quick AI & Web Search Chips**: One-tap query forwarding to AI engines (**ChatGPT**, **Gemini**, **Perplexity**, **Claude**) and web search targets (**Google**, **DuckDuckGo**, **YouTube**, **Wikipedia**, **Reddit**, **GitHub**, **Play Store**, **Maps**, **Amazon**, **Brave**).
+- **Customizable Search Chips**: Enable or hide individual chips to fit your workflow.
+- **Live Autocomplete Suggestions**: Real-time web search suggestions powered by Google Suggest.
+- **Search Recents & Frequency**: Easily toggle whether to show **Recently Opened**, **Frequently Opened**, or **Recently Installed** apps when the search bar is empty.
 
-Weather data is provided through [Breezy Weather](https://github.com/breezy-weather/breezy-weather), which must be installed and configured separately.
+### 📞 Direct Contact Quick Actions
+- When contacts appear in search results, dedicated quick action icons appear right on the card:
+  - **📞 Call Button**: Instantly dials the contact without leaving the launcher.
+  - **💬 SMS Button**: Opens a direct text message conversation with the contact.
+  - Tapping the contact card opens their full contact profile.
 
-## Screenshots
+### ⚡ Custom Activity Shortcuts & Quick Settings Tile
+- **Activity Scanner**: Discover and launch internal and hidden activities across all installed applications.
+- **Root Fallback**: Automatically leverages root `su` execution when launching non-exported or protected activities.
+- **Placement Toggles**: Choose whether custom activities appear in Search, the App Drawer, or both.
+- **Quick Settings Tile**: Assign any custom activity shortcut to Android's Quick Settings tile (`CustomShortcutTileService`) for access anywhere on your device.
 
-| Home | Agenda & weather | Music controls | App list | App shortcuts |
-| --- | --- | --- | --- | --- |
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01-home.png" alt="Home screen with Monocons icons and a teal gradient wallpaper" width="160"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02-agenda.png" alt="Calendar events and the Shanghai weather forecast" width="160"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03-music.png" alt="Music playback controls with the song's album cover" width="160"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/04-app-list-c.png" alt="Alphabetical app list with the letter C selected" width="160"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/05-gmail-shortcuts.png" alt="Gmail popup with sample notifications and app shortcuts" width="160"> |
+### 📱 Centered Bottom Dock with Grace Button
+- **Fixed Home Dock**: Pin any app stack to the bottom as an auto-fitting, centered home dock.
+- **Grace Button Integration**: When fixed at the bottom, the launcher's Grace button automatically moves into the dock alongside up to 4 apps (up to 5 grids total), seamlessly hiding the floating button from the home screen.
+- **App Stack Names**: Toggle text labels beneath icons in stacks and dock.
 
-| Home widget | Themes | Clock style | Icon packs | Icon Designer |
-| --- | --- | --- | --- | --- |
-| <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/06-home-widget.png" alt="A Chrome search widget added to the home screen" width="160"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/07-themes.png" alt="Theme settings with wallpaper-based dynamic colors" width="160"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/08-clock-style.png" alt="Clock style editor with the Sacramento preset selected" width="160"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/09-icon-packs.png" alt="Icon pack settings with Monocons enabled" width="160"> | <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/10-icon-designer.png" alt="Icon Designer editing the Gmail icon" width="160"> |
+### 🎨 Design & Personalization
+- **Icon Designer**: Customize shapes, sizes, and colors for any individual app icon.
+- **Clock Widget**: Tailor the home screen clock with custom typography, spacing, and layouts.
+- **Material You**: Dynamic wallpaper-derived colors and dark theme support.
+- **Lag-Free Performance**: In-memory caching, zero IPC queries on keystrokes, and debounced network requests.
 
-## Download
+---
 
-Official builds are available from [GitHub Releases](https://github.com/Galaxy-rio/GraceLauncher/releases) and [F-Droid](https://f-droid.org/packages/rikazzz.everythinglauncher/).
+## 🤝 Acknowledgements & Credits
 
-Grace Launcher requires Android 9 (API 28) or later.
+Everything Launcher is built upon and inspired by the incredible work of the open-source Android community. We extend our deepest gratitude to the creators and maintainers of the following projects:
 
-## Build from source
+1. **[Grace Launcher](https://github.com/Galaxy-rio/GraceLauncher)** by **[Galaxy-rio](https://github.com/Galaxy-rio)**
+   - The foundation of this launcher. Grace Launcher provides the minimalist list layout, gesture navigation, app stacks, clock widget designer, and Jetpack Compose architecture.
+2. **[Quick Search](https://github.com/teja2495/quick-search)** by **[Teja Karlapudi (teja2495)](https://github.com/teja2495)**
+   - Inspired the universal spotlight search experience, device settings indexing, math/percentage calculator engine, Google suggestion integration, and AI/web search target chips.
+3. **[Activity Launcher](https://github.com/ActivityLauncher/ActivityLauncher)** by **[ActivityLauncher Team / butzist](https://github.com/ActivityLauncher/ActivityLauncher)**
+   - Inspired the internal activity scanner, custom shortcut management for hidden Android activities, root intent launching, and Quick Settings tile integration.
 
-Install OpenJDK 21, Android SDK Platform 37, and Build Tools 36.1.0, then build the debug APK with the included Gradle wrapper.
+---
 
-Linux or macOS:
+## 📥 Download
 
-```shell
+Pre-built debug APKs are automatically compiled and released on GitHub Actions:
+- **Latest APK Release**: Check the [GitHub Releases](https://github.com/zakir786lrk/Everything-launcher-/releases) or the Actions artifacts on [zakir786lrk/Everything-launcher-](https://github.com/zakir786lrk/Everything-launcher-).
+- **Requirements**: Android 9.0 (API 28) or higher.
+
+---
+
+## 🛠️ Building From Source
+
+To build the project locally, ensure you have **OpenJDK 21** and the **Android SDK (API 35+)** installed:
+
+```bash
+# Clone the repository
+git clone https://github.com/zakir786lrk/Everything-launcher-.git
+cd Everything-launcher-
+
+# Build the Debug APK
 ./gradlew :app:assembleDebug
 ```
 
-Windows:
+The compiled APK will be generated at:
+`app/build/outputs/apk/debug/app-debug.apk`
 
-```powershell
-.\gradlew.bat :app:assembleDebug
-```
+---
 
-The APK will be generated at `app/build/outputs/apk/debug/app-debug.apk`.
+## 🔒 Privacy & Permissions
 
-## Privacy
+Everything Launcher is designed with privacy as a first principle:
+- **No telemetry, analytics, or user tracking.**
+- **Network Access**: Used solely for opt-in live search suggestions and opening user-requested web searches. No user data is sent to private servers.
+- **Contacts & Usage Access**: Optional permissions used exclusively on-device to power instant search suggestions and contact dial/SMS shortcuts.
+- **Root Access**: Completely optional; only used if requested to launch unexported activities that Android restricts.
 
-Grace Launcher does not request Android's `INTERNET` permission and contains no advertising or tracking. All launcher data is stored locally on your device.
+---
 
-Calendar permission and notification access are optional. Calendar permission enables the agenda; notification access enables home screen notifications and controls for active media sessions. Weather is supplied by the separately installed Breezy Weather app.
+## 📄 License
 
-## Contributing
-
-Report bugs and suggest improvements through [Issues](https://github.com/Galaxy-rio/GraceLauncher/issues), submit a pull request, or help translate on [Weblate](https://hosted.weblate.org/engage/grace_launcher/).
-
-<a href="https://hosted.weblate.org/engage/grace_launcher/">
-  <img src="https://hosted.weblate.org/widget/grace_launcher/multi-auto.svg" alt="Translation status">
-</a>
-
-## Acknowledgements
-
-Special thanks to [Niagara Launcher](https://niagaralauncher.app/) for the design inspiration.
-
-Grace Launcher is an independent project and is not affiliated with or endorsed by Niagara Launcher.
-
-## License
-
-Grace Launcher is licensed under the [GNU General Public License v3.0](LICENSE).
+This project is licensed under the **GNU General Public License v3.0** (GPLv3). See the [LICENSE](LICENSE) file for details.
