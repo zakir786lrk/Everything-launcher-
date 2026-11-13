@@ -17,7 +17,7 @@ try {
     # Requires English UI, installed Monocons/Gmail/Chrome and one local song with cover art.
     # Each scene changes the emulator's real wallpaper; Material You follows its colors.
     $captureArguments = @(':app:connectedDebugAndroidTest',
-        '-Pandroid.testInstrumentationRunnerArguments.class=com.galaxyrio.gracelauncher.StoreScreenshotTest',
+        '-Pandroid.testInstrumentationRunnerArguments.class=rikazzz.everythinglauncher.StoreScreenshotTest',
         '-Pandroid.testInstrumentationRunnerArguments.storeScreenshots=true')
     if ($Scenes) { $captureArguments += "-Pandroid.testInstrumentationRunnerArguments.storeScreenshotScenes=$Scenes" }
     & "$captureProjectRoot/gradlew.bat" @captureArguments

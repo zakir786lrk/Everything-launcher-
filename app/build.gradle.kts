@@ -7,12 +7,12 @@ plugins {
 }
 
 android {
-    namespace = "com.galaxyrio.gracelauncher"
+    namespace = "rikazzz.everythinglauncher"
     compileSdk = 37
     buildToolsVersion = "36.1.0"
 
     defaultConfig {
-        applicationId = "com.galaxyrio.gracelauncher"
+        applicationId = "rikazzz.everythinglauncher"
         minSdk = 28
         targetSdk = 37
         versionCode = 15

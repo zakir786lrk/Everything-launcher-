@@ -222,7 +222,7 @@
     <string name="private_space_unlock_edit">Unlock to edit</string>
     <string name="private_space_lock">Lock Private space</string>
     <!-- Core -->
-    <string name="app_name">Grace Launcher</string>
+    <string name="app_name">Everything Launcher</string>
     <string name="alphabet_scroller">Alphabet quick scroll</string>
     <string name="back_home">Back to home</string>
     <string name="jump_to_letter">Apps starting with %1$s</string>

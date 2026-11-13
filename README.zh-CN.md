@@ -18,7 +18,7 @@
   </div>
   <p>
     <a href="https://github.com/Galaxy-rio/GraceLauncher/releases"><img width="153" align="middle" src="https://ziadoua.github.io/m3-Markdown-Badges/badges/Github/github2.svg" alt="GitHub 发行版"></a>
-    <a href="https://f-droid.org/packages/com.galaxyrio.gracelauncher/"><img height="60" align="middle" src="https://f-droid.org/badge/get-it-on.svg" alt="从 F-Droid 下载"></a>
+    <a href="https://f-droid.org/packages/rikazzz.everythinglauncher/"><img height="60" align="middle" src="https://f-droid.org/badge/get-it-on.svg" alt="从 F-Droid 下载"></a>
   </p>
   <p>一款自由开源的 Android 桌面，提供简洁的应用列表、自定义图标与字体、可自行设计的时钟小组件，无追踪。</p>
 </div>
@@ -51,7 +51,7 @@
 
 ## 下载
 
-官方版本可从 [GitHub Releases](https://github.com/Galaxy-rio/GraceLauncher/releases) 和 [F-Droid](https://f-droid.org/packages/com.galaxyrio.gracelauncher/) 下载。
+官方版本可从 [GitHub Releases](https://github.com/Galaxy-rio/GraceLauncher/releases) 和 [F-Droid](https://f-droid.org/packages/rikazzz.everythinglauncher/) 下载。
 
 Grace Launcher 需要 Android 9（API 28）或更高版本。
 

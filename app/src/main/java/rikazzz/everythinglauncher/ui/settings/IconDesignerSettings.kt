@@ -1,0 +1,132 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
+package rikazzz.everythinglauncher.ui.settings
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.*
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import rikazzz.everythinglauncher.R
+import rikazzz.everythinglauncher.data.LauncherApp
+import rikazzz.everythinglauncher.data.ItemIcon
+import rikazzz.everythinglauncher.data.IconDesign
+import rikazzz.everythinglauncher.data.IconDisplaySettings
+import rikazzz.everythinglauncher.data.IconDisplayStyle
+import rikazzz.everythinglauncher.data.icons.IconLayers
+import rikazzz.everythinglauncher.data.icons.ItemIconStore
+import rikazzz.everythinglauncher.data.icons.isGraceButton
+import rikazzz.everythinglauncher.ui.LauncherUiState
+import rikazzz.everythinglauncher.ui.components.LauncherIcon
+import rikazzz.everythinglauncher.ui.components.LauncherSymbol
+import rikazzz.everythinglauncher.ui.components.LauncherLayout
+import rikazzz.everythinglauncher.ui.components.endPadding
+import rikazzz.everythinglauncher.ui.components.startPadding
+import rikazzz.everythinglauncher.ui.theme.LocalLauncherAppearance
+import rikazzz.everythinglauncher.ui.theme.LocalLauncherTypography
+import rikazzz.everythinglauncher.ui.theme.rememberLauncherAppearance
+
+@Composable
+internal fun IconDesignerPreview(
+    uiState: LauncherUiState, selectedApp: LauncherApp?, choice: ItemIcon, design: IconDesign, layers: IconLayers?,
+    store: ItemIconStore, dynamicColors: Pair<Int, Int>, themeColors: Pair<Int, Int>, all: Boolean, enabled: Boolean, onChooseApp: () -> Unit,
+    onChange: (IconDesign) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val rowDisplay = if (!all && selectedApp?.isGraceButton == true) IconDisplaySettings()
+        else choice.display ?: if (!all && selectedApp?.shortcut != null && uiState.settings.iconDesign?.design?.applyToShortcuts != true)
+            IconDisplaySettings() else uiState.settings.iconDisplay
+    val appearance = rememberLauncherAppearance(uiState.textMode, uiState.themedIcons,
+        iconSize = design.iconSize, iconDisplay = rowDisplay)
+    Box(modifier.fillMaxWidth().testTag("icon_designer_preview").clipToBounds(), contentAlignment = Alignment.Center) {
+        CompositionLocalProvider(LocalLauncherAppearance provides appearance) {
+            MaterialTheme(typography = LocalLauncherTypography.current) {
+                if (all) AllIconsPreview(uiState, choice, store, dynamicColors, themeColors)
+                else if (selectedApp == null) {
+                    val description = stringResource(R.string.icon_designer_choose_app)
+                    Box(
+                        Modifier.size(80.dp).testTag("icon_designer_choose_app").clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .clickable(role = Role.Button, onClick = onChooseApp).semantics { contentDescription = description },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        LauncherIcon(LauncherSymbol.Plus, Modifier.size(32.dp), MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                } else if (rowDisplay.style == IconDisplayStyle.Full) {
+                    DesignerPreviewIcon(selectedApp, layers, design, dynamicColors, 160.dp * (design.iconSize / 100f),
+                        Modifier.testTag("icon_designer_selected_app"), draggable = enabled, onChange = onChange, themeColors = themeColors,
+                        appColors = rememberDesignerAppColors(selectedApp, uiState.settings, store))
+                } else {
+                    Row(Modifier.testTag("icon_designer_display_result").padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        if (rowDisplay.style != IconDisplayStyle.Hidden) {
+                            DesignerDisplayedIcon(selectedApp, layers, design, dynamicColors, themeColors,
+                                40.dp * (design.iconSize / 100f), rowDisplay)
+                            Spacer(Modifier.width(LauncherLayout.IconLabelGap))
+                        }
+                        Text(selectedApp.label, maxLines = 1, overflow = TextOverflow.Ellipsis, color = appearance.text,
+                            style = MaterialTheme.typography.bodyLarge.merge(TextStyle(shadow = appearance.textShadow)))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** One enabled-pack match, one unmatched adaptive icon, and one unmatched legacy icon. */
+internal fun iconDesignerPreviewRows(apps: List<LauncherApp>): List<List<LauncherApp>> {
+    val activities = apps.filter { it.shortcut == null && it.folderId == null }
+    return listOf(
+        activities.filter { it.themeIconPackPackage != null }.sortedByDescending { it.isSystemApp }.take(1),
+        activities.filter { it.themeIconPackPackage == null && it.isAdaptiveIcon }.take(1),
+        activities.filter { it.themeIconPackPackage == null && !it.isAdaptiveIcon }.take(1),
+    )
+}
+
+@Composable
+private fun AllIconsPreview(uiState: LauncherUiState, choice: ItemIcon, store: ItemIconStore, dynamicColors: Pair<Int, Int>, themeColors: Pair<Int, Int>) {
+    val rows = remember(uiState.allApps) { iconDesignerPreviewRows(uiState.allApps) }
+    val categories = listOf(stringResource(R.string.icon_designer_pack_apps), stringResource(R.string.icon_designer_adaptive_apps),
+        stringResource(R.string.icon_designer_legacy_apps))
+    val iconSize = 40.dp * ((choice.design?.iconSize ?: 100) / 100f)
+    val appearance = LocalLauncherAppearance.current
+    Column(Modifier.fillMaxSize().padding(start = uiState.settings.listAppearance.startPadding,
+        end = uiState.settings.listAppearance.endPadding, top = 12.dp, bottom = 12.dp).testTag("icon_designer_grid"),
+        verticalArrangement = Arrangement.Center) {
+            rows.forEachIndexed { row, entries ->
+                val app = entries.firstOrNull()
+                val label = app?.label ?: stringResource(R.string.icon_designer_example)
+                Row(Modifier.fillMaxWidth().heightIn(min = LauncherLayout.RowMinHeight).testTag("icon_designer_row:$row")
+                    .semantics(mergeDescendants = true) { contentDescription = "${categories[row]} · $label" }
+                    .padding(LauncherLayout.ContentInset), verticalAlignment = Alignment.CenterVertically) {
+                    // Rows preview the resolved display: per-item override, else the shared draft.
+                    val rowDisplay = app?.let { uiState.itemIcons[it.key]?.display?.resolve(appearance.iconDisplay) }
+                        ?: appearance.iconDisplay
+                    if (rowDisplay.style != IconDisplayStyle.Hidden) {
+                        Box(Modifier.testTag("icon_designer_icon:$row:0")) {
+                            if (app != null) DesignerDisplayRowIcon(app, uiState, choice, store, dynamicColors, themeColors, iconSize, rowDisplay)
+                            else DesignerSampleDisplayIcon(row, choice, dynamicColors, themeColors, iconSize, rowDisplay, uiState.settings, store)
+                        }
+                        Spacer(Modifier.width(LauncherLayout.IconLabelGap))
+                    }
+                    Text(label, color = appearance.text,
+                        style = MaterialTheme.typography.bodyLarge.merge(TextStyle(fontWeight = FontWeight.Normal,
+                            letterSpacing = 0.2.sp, shadow = appearance.textShadow)),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+    }
+}

@@ -18,7 +18,7 @@
   </div>
   <p>
     <a href="https://github.com/Galaxy-rio/GraceLauncher/releases"><img width="153" align="middle" src="https://ziadoua.github.io/m3-Markdown-Badges/badges/Github/github2.svg" alt="GitHub Releases"></a>
-    <a href="https://f-droid.org/packages/com.galaxyrio.gracelauncher/"><img height="60" align="middle" src="https://f-droid.org/badge/get-it-on.svg" alt="Get it on F-Droid"></a>
+    <a href="https://f-droid.org/packages/rikazzz.everythinglauncher/"><img height="60" align="middle" src="https://f-droid.org/badge/get-it-on.svg" alt="Get it on F-Droid"></a>
   </p>
   <p>A free and open-source Android launcher with a simple app list, customizable icons and fonts, a clock widget you can design yourself, and no tracking.</p>
 </div>
@@ -51,7 +51,7 @@ Weather data is provided through [Breezy Weather](https://github.com/breezy-weat
 
 ## Download
 
-Official builds are available from [GitHub Releases](https://github.com/Galaxy-rio/GraceLauncher/releases) and [F-Droid](https://f-droid.org/packages/com.galaxyrio.gracelauncher/).
+Official builds are available from [GitHub Releases](https://github.com/Galaxy-rio/GraceLauncher/releases) and [F-Droid](https://f-droid.org/packages/rikazzz.everythinglauncher/).
 
 Grace Launcher requires Android 9 (API 28) or later.
 

@@ -1,0 +1,1770 @@
+package rikazzz.everythinglauncher.ui
+
+import android.Manifest
+import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.net.Uri
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.res.Configuration
+import android.content.pm.PackageManager
+import android.graphics.Rect
+import android.os.Bundle
+import android.os.SystemClock
+import android.util.Log
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import rikazzz.everythinglauncher.data.AppRepository
+import rikazzz.everythinglauncher.data.AppCategory
+import rikazzz.everythinglauncher.data.FavoritesCategoryId
+import rikazzz.everythinglauncher.data.migrateHomeCategories
+import rikazzz.everythinglauncher.data.LauncherAppCache
+import rikazzz.everythinglauncher.data.LauncherCatalogMemory
+import rikazzz.everythinglauncher.data.LauncherProfileSnapshot
+import rikazzz.everythinglauncher.data.CalendarRepository
+import rikazzz.everythinglauncher.data.CalendarRefreshMode
+import rikazzz.everythinglauncher.data.CalendarSnapshot
+import rikazzz.everythinglauncher.data.CalendarQuery
+import rikazzz.everythinglauncher.data.CalendarSource
+import rikazzz.everythinglauncher.data.tasks.TasksRepository
+import rikazzz.everythinglauncher.data.tasks.TaskCompletionResult
+import rikazzz.everythinglauncher.data.tasks.TasksSnapshot
+import rikazzz.everythinglauncher.data.tasks.TasksState
+import rikazzz.everythinglauncher.data.tasks.TasksStatus
+import rikazzz.everythinglauncher.data.CatalogRefreshState
+import rikazzz.everythinglauncher.data.FavoritesStore
+import rikazzz.everythinglauncher.data.LauncherApp
+import rikazzz.everythinglauncher.data.LauncherAppOrder
+import rikazzz.everythinglauncher.data.LauncherDatabase
+import rikazzz.everythinglauncher.data.LauncherFolder
+import rikazzz.everythinglauncher.data.FolderPlacement
+import rikazzz.everythinglauncher.data.LauncherPreferences
+import rikazzz.everythinglauncher.data.LauncherSettings
+import rikazzz.everythinglauncher.data.ClockStyle
+import rikazzz.everythinglauncher.data.LauncherSettingsRepository
+import rikazzz.everythinglauncher.data.LauncherShortcut
+import rikazzz.everythinglauncher.data.ScheduleEvent
+import rikazzz.everythinglauncher.data.ShortcutRepository
+import rikazzz.everythinglauncher.data.ShortcutResult
+import rikazzz.everythinglauncher.data.WallpaperTextMode
+import rikazzz.everythinglauncher.data.icons.IconPackInfo
+import rikazzz.everythinglauncher.data.icons.IconPackRepository
+import rikazzz.everythinglauncher.data.icons.IconPackStatus
+import rikazzz.everythinglauncher.data.icons.ItemIconStore
+import rikazzz.everythinglauncher.data.icons.GraceButtonIcon
+import rikazzz.everythinglauncher.data.icons.isGraceButton
+import rikazzz.everythinglauncher.data.ItemIcon
+import rikazzz.everythinglauncher.data.IconDesign
+import rikazzz.everythinglauncher.data.launcherThemeSeed
+import rikazzz.everythinglauncher.data.PopupItem
+import rikazzz.everythinglauncher.data.LauncherItemsRepository
+import rikazzz.everythinglauncher.data.LauncherItemsSnapshot
+import rikazzz.everythinglauncher.data.PrivateSpaceFolderId
+import rikazzz.everythinglauncher.data.RecentlyInstalledFolderId
+import rikazzz.everythinglauncher.data.renamedAppKeys
+import rikazzz.everythinglauncher.data.PrivateSpaceFolderKey
+import rikazzz.everythinglauncher.data.PrivateSpaceDefaultName
+import rikazzz.everythinglauncher.data.PrivateSpaceDisplay
+import rikazzz.everythinglauncher.data.WorkProfile
+import rikazzz.everythinglauncher.data.WorkProfileFolderId
+import rikazzz.everythinglauncher.data.WorkProfileFolderKey
+import rikazzz.everythinglauncher.data.WorkProfileDefaultName
+import rikazzz.everythinglauncher.data.PrivateAppCache
+import rikazzz.everythinglauncher.platform.PrivateSpaceController
+import rikazzz.everythinglauncher.platform.PrivateSpaceState
+import rikazzz.everythinglauncher.platform.DefaultHome
+import rikazzz.everythinglauncher.platform.BreezyWeatherUpdates
+import rikazzz.everythinglauncher.data.media.MediaCommand
+import rikazzz.everythinglauncher.data.MediaPlayerStyle
+import rikazzz.everythinglauncher.data.media.MediaSessionRepository
+import rikazzz.everythinglauncher.data.media.MediaSnapshot
+import rikazzz.everythinglauncher.data.media.NowPlaying
+import rikazzz.everythinglauncher.data.CategoryInclusion
+import rikazzz.everythinglauncher.data.CategoryDynamicRule
+import rikazzz.everythinglauncher.data.CategoryNotificationLevel
+import rikazzz.everythinglauncher.data.BuiltInCategoryIds
+import rikazzz.everythinglauncher.data.notifications.NotificationAppId
+import rikazzz.everythinglauncher.data.notifications.AppNotification
+import rikazzz.everythinglauncher.data.notifications.appNotifications
+import rikazzz.everythinglauncher.data.weather.BreezyWeatherRepository
+import rikazzz.everythinglauncher.data.weather.GadgetbridgeWeatherRepository
+import rikazzz.everythinglauncher.data.weather.WeatherConnectionMode
+import rikazzz.everythinglauncher.data.weather.WeatherState
+import rikazzz.everythinglauncher.data.weather.WeatherStatus
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.time.LocalDate
+
+enum class ScheduleStatus {
+    PermissionRequired,
+    Loading,
+    Ready,
+    Error,
+}
+
+private fun recentInstallations(apps: List<LauncherApp>): List<LauncherApp> = apps.asSequence()
+        .filter { it.shortcut == null && it.folderId == null && !it.isPrivateSpace && !it.isLauncherSettings }
+        .sortedWith(compareByDescending<LauncherApp> { it.firstInstallTime }.then(LauncherAppOrder))
+        .distinctBy { it.userSerial to it.packageName }.take(8).toList()
+
+data class LauncherUiState(
+    val apps: List<LauncherApp> = emptyList(),
+    val favoriteKeys: Set<String> = emptySet(),
+    val isLoadingApps: Boolean = true,
+    val appLoadFailed: Boolean = false,
+    val events: List<ScheduleEvent> = emptyList(),
+    val scheduleStatus: ScheduleStatus = ScheduleStatus.PermissionRequired,
+    val calendarSources: List<CalendarSource> = emptyList(),
+    val calendarSourcesStatus: ScheduleStatus = ScheduleStatus.Loading,
+    val tasks: TasksState = TasksState(),
+    val completingTaskIds: Set<Long> = emptySet(),
+    val hasShortcutAccess: Boolean = false,
+    val categories: Map<String, String> = emptyMap(),
+    val textMode: WallpaperTextMode = WallpaperTextMode.Auto,
+    val themedIcons: Boolean = false,
+    val settings: LauncherSettings = LauncherSettings(),
+    /** Manual hides only; list/search consumers must use effectiveHiddenAppKeys. */
+    val hiddenAppKeys: Set<String> = emptySet(),
+    val folders: List<LauncherFolder> = emptyList(),
+    val isLoadingSettings: Boolean = false,
+    val settingsLoadFailed: Boolean = false,
+    val settingsSaveFailed: Boolean = false,
+    val iconPacks: List<IconPackInfo> = emptyList(),
+    val isLoadingIconPacks: Boolean = false,
+    val iconPacksLoadFailed: Boolean = false,
+    val iconPackStatus: IconPackStatus = IconPackStatus.System,
+    // Unknown until the first system query, avoiding a banner flash for an existing default.
+    val isDefaultHome: Boolean? = null,
+    val media: MediaSnapshot = MediaSnapshot(),
+    val notifications: Map<String, List<AppNotification>> = emptyMap(),
+    val categoryNotifications: Map<NotificationAppId, Set<CategoryNotificationLevel>> = emptyMap(),
+    val usage: rikazzz.everythinglauncher.data.UsageSnapshot = rikazzz.everythinglauncher.data.UsageSnapshot(),
+    val favoriteOrder: List<String> = emptyList(),
+    val weather: WeatherState = WeatherState(),
+    val shortcutApps: List<LauncherApp> = emptyList(),
+    val folderApps: List<LauncherApp> = emptyList(),
+    val graceButtonApp: LauncherApp? = null,
+    val popups: Map<String, List<PopupItem>> = emptyMap(),
+    val itemIcons: Map<String, ItemIcon> = emptyMap(),
+    val itemRevision: Int = 0,
+    val privateSpace: PrivateSpaceState = PrivateSpaceState(),
+    val privateApps: List<LauncherApp> = emptyList(),
+    val privateAppsLoading: Boolean = false,
+    val privateAppsFailed: Boolean = false,
+    val privateFolderApp: LauncherApp? = null,
+    val workProfiles: List<WorkProfile> = emptyList(),
+    val workFolderApp: LauncherApp? = null,
+    val shownShortcutKeys: Set<String> = emptySet(),
+) {
+    val folderHiddenAppKeys: Set<String> = rikazzz.everythinglauncher.data.hiddenAppsFromFolders(folders)
+    val effectiveHiddenAppKeys: Set<String> = hiddenAppKeys + folderHiddenAppKeys
+
+    fun findItem(key: String): LauncherApp? = apps.firstOrNull { it.key == key }
+        ?: shortcutApps.firstOrNull { it.key == key && (!it.isPrivateSpace || privateContentVisible) }
+            ?.let { if (it.isPrivateSpace) it.copy(showPrivateIndicator = settings.privateSpace.showIndicator) else it }
+        ?: privateSpaceApps.firstOrNull { it.key == key }
+        ?: privateFolder.takeIf { it.key == key }?.let(::folderItem)
+        ?: workFolder.takeIf { it.key == key }?.let(::folderItem)
+        ?: folders.firstOrNull { it.key == key }?.let(::folderItem)
+        ?: folderApps.firstOrNull { it.key == key && it.folderId == RecentlyInstalledFolderId }
+            ?.let { folderItem(recentlyInstalledFolder(it.originalLabel)) }
+        ?: graceButtonApp?.takeIf { it.key == key }
+
+    val privateFolder: LauncherFolder get() = settings.privateSpace.folder(privateSpaceApps)
+    val workProfileApps: List<LauncherApp> get() = settings.workProfile.orderedApps(apps.filter { it.isWorkProfile && it.shortcut == null })
+    val workFolder: LauncherFolder get() = settings.workProfile.folder(workProfileApps, WorkProfileFolderId)
+    // Locking/pausing a profile does not remove its pinned folder; only its contents are protected.
+    val canFavoritePrivateSpace: Boolean get() = !isLoadingSettings && !settingsLoadFailed &&
+        settings.privateSpace.enabled && privateSpace.supported && privateSpace.user != null
+    val canFavoriteWorkProfile: Boolean get() = !isLoadingSettings && !settingsLoadFailed &&
+        settings.workProfile.enabled && workProfiles.isNotEmpty()
+    val privateContentVisible: Boolean get() = !isLoadingSettings && !settingsLoadFailed && settings.privateSpace.enabled &&
+        privateSpace.user != null && (settings.privateSpace.exposesApps || (privateSpace.accessible && !privateSpace.locked))
+    val privateSpaceApps: List<LauncherApp> get() = if (privateContentVisible)
+        settings.privateSpace.orderedApps(privateApps).map { it.copy(showPrivateIndicator = settings.privateSpace.showIndicator) } else emptyList()
+    private val publicPrivateShortcuts: List<LauncherApp> get() = if (settings.privateSpace.exposesApps && privateContentVisible)
+        shortcutApps.filter { it.isPrivateSpace && it.key in shownShortcutKeys }.map { it.copy(showPrivateIndicator = settings.privateSpace.showIndicator) } else emptyList()
+    /** Public surfaces include private apps only after the user opts out of launcher protection. */
+    val allApps: List<LauncherApp> get() = (apps + (if (settings.privateSpace.exposesApps) privateSpaceApps else emptyList()) + publicPrivateShortcuts)
+        .distinctBy(LauncherApp::key).sortedWith(LauncherAppOrder)
+
+    // Hidden apps remain available in folders. Profile-protected apps and saved
+    // shortcuts are not installations in this personal-profile collection.
+    val recentlyInstalledApps: List<LauncherApp> get() = recentInstallations(apps)
+
+    fun recentlyInstalledFolder(name: String) = LauncherFolder(
+        RecentlyInstalledFolderId, settings.listAppearance.recentlyInstalledName ?: name,
+        recentlyInstalledApps.map(LauncherApp::key), FolderPlacement.AppList,
+    )
+
+    fun folderItem(folder: LauncherFolder): LauncherApp = ((if (folder.id == PrivateSpaceFolderId) privateFolderApp
+        else if (folder.id == WorkProfileFolderId) workFolderApp
+        else folderApps.firstOrNull { it.folderId == folder.id })
+        ?: folder.asApp()).copy(label = folder.name, originalLabel = folder.name)
+
+    fun popupItems(owner: LauncherApp, defaults: List<LauncherApp>): List<PopupItem> {
+        if (owner.folderId == RecentlyInstalledFolderId) return recentlyInstalledApps.map { PopupItem(it.key) }
+        if (owner.folderId == WorkProfileFolderId) return workProfileApps.map { PopupItem(it.key) }
+        val items = popups[owner.key].takeUnless { owner.folderId == PrivateSpaceFolderId }
+            ?: (if (owner.folderId == PrivateSpaceFolderId) privateSpaceApps.map { it.key }
+                else if (owner.folderId == null) defaults.map { it.key }
+                else folders.firstOrNull { it.id == owner.folderId }?.appKeys.orEmpty()).distinct().map { PopupItem(it) }
+        return if (owner.folderId != PrivateSpaceFolderId && !settings.privateSpace.exposesApps)
+            items.filterNot { it.key.startsWith("profile:") && findItem(it.key)?.isPrivateSpace != false } else items
+    }
+
+    fun ownNotificationsFor(app: LauncherApp, expanded: Boolean): List<AppNotification> =
+        if (app.shortcut != null || app.user != null || app.folderId != null) emptyList()
+        else notifications[app.packageName].orEmpty().filter { settings.shortcutsFolders.showsNotification(it.silent, expanded) }
+
+    /** An outer row previews its own notifications and those of the apps shown inside it. */
+    fun notificationsFor(app: LauncherApp, expanded: Boolean): List<AppNotification> {
+        if (app.shortcut != null || app.user != null || notifications.isEmpty()) return emptyList()
+        return buildList {
+            addAll(ownNotificationsFor(app, expanded))
+            // Use the same contents/privacy filtering as the panel. Shortcuts and widget
+            // providers do not stand for app rows; nested pop-ups are not expanded here.
+            popupItems(app, emptyList()).filter { it.widget == null }.forEach { entry ->
+                findItem(entry.key)?.let { addAll(ownNotificationsFor(it, expanded)) }
+            }
+        }.distinctBy { it.key }.sortedByDescending { it.postedAt }
+    }
+
+    fun notificationPreviewsFor(app: LauncherApp): List<AppNotification> =
+        settings.shortcutsFolders.previewNotifications(notificationsFor(app, expanded = false))
+
+    /** Resolve the exact first configured item, without skipping an unavailable item. */
+    fun firstPopupApp(owner: LauncherApp, defaults: List<LauncherApp>): LauncherApp? {
+        val first = popupItems(owner, defaults).firstOrNull() ?: return null
+        val widget = first.widget
+        if (widget != null) {
+            val packageName = widget.widgetProvider?.let(android.content.ComponentName::unflattenFromString)?.packageName ?: return null
+            // Hosted widgets currently belong to the personal profile. Never launch a
+            // same-package work/private app or a saved shortcut in its place.
+            return apps.firstOrNull { it.packageName == packageName && it.user == null && it.shortcut == null && it.folderId == null }
+        }
+        return findItem(first.key) ?: defaults.firstOrNull { it.key == first.key }
+    }
+    val homeMedia: NowPlaying?
+        get() = media.nowPlaying.takeIf {
+            settings.mediaPlayer && media.hasAccess && !isLoadingSettings && !settingsLoadFailed
+        }
+
+    /** Hide Apps affects only the alphabetical app list, not other launcher surfaces. */
+    val appListApps: List<LauncherApp>
+        get() = if (isLoadingSettings || settingsLoadFailed) emptyList()
+        else (if (settings.privateSpace.display == PrivateSpaceDisplay.NormalApp) allApps else apps + publicPrivateShortcuts)
+            .filterNot { it.key in effectiveHiddenAppKeys }
+            .filterNot { it.isWorkProfile && it.shortcut == null && settings.workProfile.enabled &&
+                settings.workProfile.display != PrivateSpaceDisplay.NormalApp }
+
+    val favoriteApps: List<LauncherApp>
+        get() {
+            if (isLoadingSettings || settingsLoadFailed) return emptyList()
+            val favorites = (allApps + shortcutApps.filter { !it.isPrivateSpace || (settings.privateSpace.exposesApps && privateContentVisible) })
+                .filter { it.key in favoriteKeys }.associateBy(LauncherApp::key)
+            return (favoriteOrder + favorites.keys).distinct().mapNotNull(favorites::get)
+        }
+
+    /** User folders use placement; built-in profile folders use stable favorite keys. */
+    val favoriteFolders: List<LauncherFolder>
+        get() {
+            if (isLoadingSettings || settingsLoadFailed) return emptyList()
+            return buildList {
+                addAll(folders.filter { it.placement.inFavorites })
+                if (canFavoritePrivateSpace && PrivateSpaceFolderKey in favoriteKeys) add(privateFolder)
+                if (canFavoriteWorkProfile && WorkProfileFolderKey in favoriteKeys) add(workFolder)
+            }
+        }
+
+    /** Every kind of favorite shares the same persisted ordering. */
+    val favoriteItems: List<LauncherApp>
+        get() {
+            if (isLoadingSettings || settingsLoadFailed) return emptyList()
+            val items = (favoriteApps + favoriteFolders.map(::folderItem))
+                .associateBy(LauncherApp::key)
+            // Existing folders keep their old position at the end until reordered.
+            return (favoriteOrder + items.keys).distinct().mapNotNull(items::get)
+        }
+
+    val appCategories: List<AppCategory> get() = settings.appCategories
+        ?: requireNotNull(migrateHomeCategories(settings, favoriteOrder.ifEmpty { favoriteKeys.toList() }).appCategories)
+
+    val homeItems: List<PopupItem> get() {
+        val migrated = migrateHomeCategories(settings, favoriteOrder.ifEmpty { favoriteKeys.toList() })
+        return rikazzz.everythinglauncher.data.orderedHomeItems(migrated,
+            (if (isLoadingSettings || settingsLoadFailed) emptyList() else appCategories.filter { it.showOnHome }.map { it.key }) +
+                favoriteFolders.map { it.key },
+            popups[rikazzz.everythinglauncher.data.HomeContentKey].orEmpty())
+    }
+
+    val needsCategoryOpenCounts: Boolean get() = appCategories.any {
+        it.inclusion == CategoryInclusion.Dynamic && it.dynamicRule == CategoryDynamicRule.FrequentlyOpened
+    }
+
+    /** Membership does not depend on placement or display conditions; editors show the same live result. */
+    fun categoryItems(category: AppCategory): List<String> {
+        if (isLoadingSettings || settingsLoadFailed) return emptyList()
+        fun available(app: LauncherApp) = !app.isPrivateSpace || (settings.privateSpace.exposesApps && privateContentVisible)
+        if (category.inclusion == CategoryInclusion.Manual) return category.itemKeys.filter { key ->
+            findItem(key)?.let(::available) == true
+        }
+        val candidates = allApps.filter { app -> available(app) && app.key !in effectiveHiddenAppKeys &&
+            app.shortcut == null && app.folderId == null && !app.isLauncherSettings }
+        return when (category.dynamicRule) {
+            CategoryDynamicRule.Notifications -> candidates.filter { app ->
+                categoryNotifications[NotificationAppId(app.packageName, app.user ?: android.os.Process.myUserHandle())]
+                    .orEmpty().any { it in category.notificationLevels }
+            }.sortedWith(LauncherAppOrder)
+            CategoryDynamicRule.RecentlyInstalled -> recentInstallations(candidates)
+            CategoryDynamicRule.FrequentlyOpened -> if (!settings.digitalWellbeing.enabled || !usage.hasAccess) emptyList() else
+                candidates.filter { it.user == null && (usage.openCounts[it.packageName] ?: 0) > 0 }
+                    .sortedWith(compareByDescending<LauncherApp> { usage.openCounts[it.packageName] ?: 0 }.then(LauncherAppOrder))
+                    .distinctBy { it.packageName }.take(category.appLimit)
+        }.map(LauncherApp::key)
+    }
+
+    internal fun visibleHomeContent(headphones: Boolean, minuteOfDay: Int) =
+        rikazzz.everythinglauncher.data.expandHomeCategories(homeItems, appCategories, headphones, minuteOfDay,
+            categoryItems = ::categoryItems) { key ->
+            findItem(key)?.let { !it.isPrivateSpace || (settings.privateSpace.exposesApps && privateContentVisible) } == true
+        }
+}
+
+class LauncherViewModel(application: Application) : AndroidViewModel(application) {
+    private val iconPacks = IconPackRepository.get(application)
+    private val appRepository = AppRepository.get(application, iconPacks)
+    private val appCache = LauncherAppCache(application)
+    private var startupPreviewPending = true
+    private val privateAppCache = PrivateAppCache(application)
+    private var privateRawApps: List<LauncherApp> = emptyList()
+    private var privateSavedApps: List<LauncherApp> = emptyList()
+    private var privateRawSerial: Long = -1
+    val privateSpaceController = PrivateSpaceController.get(application)
+    private val calendarRepository = CalendarRepository(application)
+    private val tasksRepository = TasksRepository(application)
+    private val favoritesStore = FavoritesStore(application)
+    private val preferences = LauncherPreferences(application)
+    private val shortcutRepository = ShortcutRepository(application)
+    private val settingsRepository = LauncherSettingsRepository(LauncherDatabase.getInstance(application))
+    private val itemsRepository = LauncherItemsRepository(LauncherDatabase.getInstance(application))
+    private val itemIcons = ItemIconStore.get(application, iconPacks)
+    private data class StyledShortcuts(val inputs: List<Any?>, val result: ShortcutResult)
+    private val styledShortcuts = android.util.LruCache<String, StyledShortcuts>(24)
+    private var itemsSnapshot = LauncherItemsSnapshot()
+    private var itemsReady = false
+    private val mediaRepository = MediaSessionRepository(application)
+    private val weatherRepository = BreezyWeatherRepository(application)
+    private val gadgetbridgeWeatherRepository = GadgetbridgeWeatherRepository.get(application)
+    private val settingsWriteMutex = Mutex()
+
+    private val _uiState = MutableStateFlow(LauncherUiState(
+        categories = preferences.categories(),
+        textMode = preferences.textMode,
+        themedIcons = preferences.themedIcons,
+        graceButtonApp = GraceButtonIcon.item(application),
+        isLoadingSettings = true,
+    ))
+    val uiState = _uiState.asStateFlow()
+
+    private val _returnHomeRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val returnHomeRequests = _returnHomeRequests.asSharedFlow()
+
+    private var appLoadJob: Job? = null
+    private var profileRefreshJob: Job? = null
+    private var profileRefreshPending = false
+    private var appProfiles = LauncherProfileSnapshot(emptyList(), complete = false)
+    private data class CatalogInputs(val configuration: String, val day: LocalDate,
+        val renames: Map<String, String>, val themedIcons: Boolean, val shortcutAccess: Boolean,
+        val profiles: LauncherProfileSnapshot, val repositoryRevision: Long, val iconPackRevision: Long)
+    private val catalogRefresh = CatalogRefreshState<CatalogInputs>()
+    private var privateAppLoadJob: Job? = null
+    private var scheduleLoadJob: Job? = null
+    private var calendarSourcesLoadJob: Job? = null
+    private var tasksObservationJob: Job? = null
+    private var tasksLoadJob: Job? = null
+    private var tasksReadPending = false
+    private data class ScheduleReadRequest(val query: CalendarQuery, val automatic: Boolean)
+    private var activeScheduleRead: ScheduleReadRequest? = null
+    private var pendingScheduleRead: ScheduleReadRequest? = null
+    private var schedulePollingJob: Job? = null
+    private var calendarForeground = false
+    private var calendarHomeVisible = false
+    private var calendarHomeRefreshPending = false
+    private var weatherLoadJob: Job? = null
+    private val usageRepository = rikazzz.everythinglauncher.data.UsageRepository.get(application)
+    private var usageLoadJob: Job? = null
+    private var lastWeatherRefresh = 0L
+    private var lastWeatherRequest: Triple<WeatherConnectionMode, String?, String?>? = null
+    private var iconPackDiscoveryJob: Job? = null
+    private var retryIconPacksAfter = 0L
+    private val dateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            refreshApps()
+            // Reapply system temperature preferences and date/time interpretation to cached pushes.
+            if (_uiState.value.settings.weatherConnection.mode == WeatherConnectionMode.Gadgetbridge) refreshWeather()
+        }
+    }
+
+    init {
+        viewModelScope.launch {
+            calendarRepository.snapshots.collect { snapshot -> adoptCalendarSnapshot(snapshot) }
+        }
+        viewModelScope.launch {
+            tasksRepository.snapshots.collect { snapshot -> adoptTasksSnapshot(snapshot) }
+        }
+        viewModelScope.launch {
+            appRepository.revision.collect {
+                styledShortcuts.evictAll()
+                refreshWeather(force = false)
+                refreshOnResume()
+            }
+        }
+        viewModelScope.launch {
+            privateSpaceController.state.collect { state ->
+                val previous = _uiState.value.privateSpace
+                val sameProfile = previous.user == state.user && previous.serial == state.serial
+                _uiState.update { it.copy(privateSpace = state,
+                    privateApps = if (sameProfile) it.privateApps else emptyList(),
+                    shortcutApps = if (sameProfile) it.shortcutApps else it.shortcutApps.filterNot(LauncherApp::isPrivateSpace)) }
+                if (!sameProfile || previous.accessible != state.accessible ||
+                    previous.locked != state.locked || previous.revision != state.revision) refreshPrivateApps()
+            }
+        }
+        viewModelScope.launch {
+            itemsRepository.snapshots.catch { error ->
+                if (error is CancellationException) throw error
+                Log.e("LauncherViewModel", "Unable to read launcher items", error)
+                _uiState.update { it.copy(settingsLoadFailed = true) }
+            }.collect { snapshot ->
+                val reload = !itemsReady || snapshot.icons != itemsSnapshot.icons || snapshot.shortcuts != itemsSnapshot.shortcuts
+                itemsReady = true
+                itemsSnapshot = snapshot
+                _uiState.update { it.copy(popups = snapshot.popups, itemIcons = snapshot.icons,
+                    shownShortcutKeys = snapshot.shortcuts.filter { saved -> saved.showInAppList }.map { saved -> saved.itemKey }.toSet(),
+                    itemRevision = it.itemRevision + 1) }
+                if (reload) refreshApps()
+            }
+        }
+        viewModelScope.launch {
+            BreezyWeatherUpdates.events.collectLatest {
+                if (_uiState.value.settings.weatherConnection.mode != WeatherConnectionMode.LocationUpdateNotifier) return@collectLatest
+                // Refresh after the final signal, so a forecast update following
+                // a current-conditions update is never lost to a leading-edge throttle.
+                delay(500)
+                if (_uiState.value.settings.weatherConnection.mode == WeatherConnectionMode.LocationUpdateNotifier) refreshWeather()
+            }
+        }
+        viewModelScope.launch {
+            gadgetbridgeWeatherRepository.events.collect {
+                if (_uiState.value.settings.weatherConnection.mode == WeatherConnectionMode.Gadgetbridge) refreshWeather()
+            }
+        }
+        viewModelScope.launch {
+            appNotifications.state.collect { notifications -> _uiState.update { it.copy(notifications = notifications) } }
+        }
+        viewModelScope.launch {
+            mediaRepository.state.collect { media -> _uiState.update { it.copy(media = media) } }
+        }
+        viewModelScope.launch {
+            appNotifications.categoryState.collect { memberships -> _uiState.update { it.copy(categoryNotifications = memberships) } }
+        }
+        ContextCompat.registerReceiver(application, dateReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_DATE_CHANGED)
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            addAction(Intent.ACTION_WALLPAPER_CHANGED)
+            addAction(Intent.ACTION_CONFIGURATION_CHANGED)
+        }, ContextCompat.RECEIVER_NOT_EXPORTED)
+        viewModelScope.launch {
+            settingsRepository.snapshots
+                .catch { error ->
+                    if (error is CancellationException) throw error
+                    Log.e("LauncherViewModel", "Unable to read launcher settings", error)
+                    _uiState.update { it.copy(isLoadingSettings = false, settingsLoadFailed = true) }
+                    mediaRepository.setEnabled(false)
+                    refreshWeather()
+                }
+                .collect { snapshot ->
+                    val previous = _uiState.value
+                    val legacyFavorites = favoritesStore.savedFavorites()
+                    if (snapshot.settings.appCategories == null && legacyFavorites != null) {
+                        persistSettings { settingsRepository.migrateAppCategories(legacyFavorites) }
+                    }
+                    val favorites = categoryFavoriteOrder(snapshot.settings, legacyFavorites ?: previous.favoriteOrder)
+                    privateSpaceController.configure(snapshot.settings.privateSpace)
+                    _uiState.update {
+                        it.copy(
+                            settings = snapshot.settings,
+                            weather = if (it.settings.weatherConnection.mode != snapshot.settings.weatherConnection.mode)
+                                WeatherState() else it.weather,
+                            favoriteKeys = favorites.toSet(), favoriteOrder = favorites,
+                            apps = it.apps.map { app -> if (app.isWorkProfile) app.copy(showWorkIndicator = snapshot.settings.workProfile.showIndicator) else app },
+                            shortcutApps = it.shortcutApps.map { app -> if (app.isWorkProfile) app.copy(showWorkIndicator = snapshot.settings.workProfile.showIndicator) else app },
+                            themedIcons = snapshot.settings.iconDesign?.design?.withThemeDefaults(IconDesign.defaults(preferences.themedIcons))?.themeIcons
+                                ?: preferences.themedIcons,
+                            hiddenAppKeys = snapshot.hiddenAppKeys,
+                            folders = snapshot.folders,
+                            isLoadingSettings = false,
+                            settingsLoadFailed = false,
+                        )
+                    }
+                    if (previous.isLoadingSettings ||
+                        previous.settings.calendarAgenda != snapshot.settings.calendarAgenda ||
+                        previous.settings.calendar.query != snapshot.settings.calendar.query ||
+                        previous.settings.calendar.refreshMode != snapshot.settings.calendar.refreshMode
+                    ) updateCalendarRefreshPolicy()
+                    if (!previous.isLoadingSettings &&
+                        previous.settings.calendar.selectedCalendarIds != snapshot.settings.calendar.selectedCalendarIds
+                    ) {
+                        // A source edit applies immediately, including in manual refresh mode.
+                        requestScheduleRead(automatic = false)
+                    }
+                    if (previous.isLoadingSettings ||
+                        previous.settings.calendar.tasksOrg.enabled != snapshot.settings.calendar.tasksOrg.enabled ||
+                        previous.settings.calendar.tasksOrg.selectedListIds != snapshot.settings.calendar.tasksOrg.selectedListIds
+                    ) {
+                        updateTasksPolicy()
+                    }
+                    if (previous.isLoadingSettings || previous.settings.mediaPlayer != snapshot.settings.mediaPlayer) {
+                        mediaRepository.setEnabled(snapshot.settings.mediaPlayer)
+                    }
+                    if (previous.isLoadingSettings || previous.settings.enabledIconPackPackages != snapshot.settings.enabledIconPackPackages ||
+                        previous.settings.iconDesign != snapshot.settings.iconDesign ||
+                        previous.settings.darkMode != snapshot.settings.darkMode ||
+                        previous.settings.amoledMode != snapshot.settings.amoledMode ||
+                        previous.settings.useDynamicColors != snapshot.settings.useDynamicColors ||
+                        previous.settings.themeColor != snapshot.settings.themeColor ||
+                        previous.settings.paletteStyle != snapshot.settings.paletteStyle ||
+                        previous.folders != snapshot.folders) refreshApps()
+                    if (previous.settings.privateSpace != snapshot.settings.privateSpace) refreshPrivateApps()
+                    if (previous.isLoadingSettings || previous.settings.digitalWellbeing != snapshot.settings.digitalWellbeing ||
+                        previous.needsCategoryOpenCounts != _uiState.value.needsCategoryOpenCounts) {
+                        usageLoadJob?.cancel()
+                        usageLoadJob = null
+                        refreshUsage()
+                    }
+                    if (previous.isLoadingSettings || previous.settings.weatherEnabled != snapshot.settings.weatherEnabled ||
+                        previous.settings.weatherLocationId != snapshot.settings.weatherLocationId ||
+                        previous.settings.weatherConnection.mode != snapshot.settings.weatherConnection.mode ||
+                        previous.settings.weatherConnection.gadgetbridgeLocationId != snapshot.settings.weatherConnection.gadgetbridgeLocationId ||
+                        previous.settings.weatherConnection.temperatureUnit != snapshot.settings.weatherConnection.temperatureUnit
+                    ) refreshWeather()
+                    if (previous.isLoadingSettings) {
+                        val favorites = _uiState.value.favoriteApps
+                        viewModelScope.launch { shortcutRepository.prefetch(favorites) }
+                    }
+                }
+        }
+        refreshApps()
+    }
+
+    private fun catalogConfiguration(): String = ContextCompat.getContextForLanguage(getApplication()).resources.configuration.let {
+        "${it.densityDpi}:${it.uiMode and Configuration.UI_MODE_NIGHT_MASK}:${it.locales.toLanguageTags()}"
+    }
+
+    private fun catalogInputs() = CatalogInputs(catalogConfiguration(),
+        LocalDate.now(), preferences.renames(), preferences.themedIcons, shortcutRepository.hasAccess(), appProfiles,
+        appRepository.revision.value, iconPacks.cacheRevision())
+
+    private var renamingApps: Job? = null
+
+    /** Some apps rename their launcher activity in every update; move their saved places to the new name. */
+    private fun followRenamedApps(installed: List<String>, favorites: List<String>) {
+        if (renamingApps?.isActive == true) return
+        val state = _uiState.value
+        val saved = favorites + state.hiddenAppKeys + state.popups.flatMap { (owner, items) -> items.map { it.key } + owner } +
+            state.settings.appCategories.orEmpty().flatMap { it.itemKeys } +
+            listOfNotNull(state.settings.mediaAppKey, state.settings.clockAppKey, state.settings.weatherConnection.appKey)
+        val renames = renamedAppKeys(saved, installed)
+        if (renames.isEmpty()) return
+        renamingApps = viewModelScope.launch {
+            settingsWriteMutex.withLock {
+                try {
+                    settingsRepository.renameApps(renames)
+                    favoritesStore.renameApps(renames)
+                    preferences.renameApps(renames)
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    Log.w("LauncherViewModel", "Unable to follow renamed apps: ${renames.keys}", error)
+                    return@launch
+                }
+            }
+            refreshApps()
+        }
+    }
+
+    /** Explicit changes/retries invalidate the catalog; ordinary resumes only check its inputs. */
+    fun refreshApps() {
+        // Explicit package/pack refreshes can change artwork without changing its saved identity.
+        styledShortcuts.evictAll()
+        if (_uiState.value.appLoadFailed) appRepository.invalidateAll()
+        catalogRefresh.invalidate()
+        refreshOnResume()
+    }
+
+    fun refreshProfiles() {
+        appRepository.invalidateProfiles()
+        refreshApps()
+    }
+
+    fun refreshOnResume() {
+        refreshUsage()
+        mediaRepository.refresh()
+        refreshWeather(force = false)
+        val isDefaultHome = DefaultHome.isDefault(getApplication())
+        privateSpaceController.refresh()
+        if (_uiState.value.privateAppsFailed) refreshPrivateApps()
+        val favorites = _uiState.value.takeUnless { it.isLoadingApps || it.appLoadFailed }
+            ?.let { categoryFavoriteOrder(it.settings, favoritesStore.favoritesFor(it.apps)) }
+        _uiState.update { it.copy(isDefaultHome = isDefaultHome, hasShortcutAccess = shortcutRepository.hasAccess(),
+            categories = preferences.categories(), textMode = preferences.textMode,
+            favoriteKeys = favorites?.toSet() ?: it.favoriteKeys, favoriteOrder = favorites ?: it.favoriteOrder) }
+        // Wait for the stored pack choice: do not flash system icons on cold start.
+        if (!itemsReady || _uiState.value.isLoadingSettings || _uiState.value.settingsLoadFailed) return
+        if (iconPacks.consumeDueRetries()) catalogRefresh.invalidate()
+        if (retryIconPacksAfter != 0L && SystemClock.elapsedRealtime() >= retryIconPacksAfter) {
+            retryIconPacksAfter = 0L
+            catalogRefresh.invalidate()
+        }
+        // Some OEMs omit package/profile callbacks when a clone is created or removed.
+        // Check identity and availability on resume without reloading unchanged icons.
+        profileRefreshPending = true
+        if (profileRefreshJob?.isActive == true) return
+        profileRefreshJob = viewModelScope.launch {
+            while (profileRefreshPending) {
+                profileRefreshPending = false
+                try {
+                    restoreStartupPreview()
+                    appProfiles = appRepository.profileSnapshot()
+                    refreshCatalog()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w("LauncherViewModel", "Unable to discover launcher profiles", error)
+                    _uiState.update { it.copy(isLoadingApps = false, appLoadFailed = true) }
+                }
+            }
+        }
+    }
+
+    /** Only changes that affect every rendered icon invalidate the whole preview. */
+    private fun startupCacheKey(): String {
+        val settings = _uiState.value.settings
+        return LauncherAppCache.key(listOf(
+            "public-preview-4", settings.enabledIconPackPackages, settings.iconDesign, settings.darkMode,
+            settings.useDynamicColors, settings.themeColor, settings.paletteStyle, settings.amoledMode,
+            preferences.themedIcons, catalogConfiguration(),
+            launcherThemeSeed(getApplication<Application>().resources, true, settings.themeColor),
+        ).joinToString("\n"))
+    }
+
+    private fun previewEntryKeys(): Map<String, String> = buildMap {
+        itemsSnapshot.icons.forEach { (key, choice) -> put(key, choice.encode()) }
+        itemsSnapshot.shortcuts.forEach { put(it.itemKey, "${get(it.itemKey).orEmpty()}:$it") }
+        (_uiState.value.folders + _uiState.value.workFolder + _uiState.value.privateFolder).forEach {
+            // Profile-folder membership changes as each preview batch arrives.
+            // Only the folder's own appearance belongs in its icon cache stamp.
+            put(it.key, "${get(it.key).orEmpty()}:${it.name}:${it.isAppStack}")
+        }
+    }
+
+    /** Stored visibility/shortcut choices always win over disposable cached rows. */
+    private fun publishPreview(entries: List<LauncherApp>) {
+        val state = _uiState.value
+        if (state.isLoadingSettings || state.settingsLoadFailed) return
+        val savedShortcuts = itemsSnapshot.shortcuts.map { it.itemKey }.toSet()
+        val renames = preferences.renames()
+        val folders = state.folders.associateBy(LauncherFolder::id)
+        val preview = entries.filter { app ->
+            !app.isPrivateSpace && app.shortcut?.isPrivateSpace != true &&
+                (app.shortcut == null || (state.hasShortcutAccess && app.key in savedShortcuts)) &&
+                (app.folderId == null || app.folderId in folders || app.folderId in setOf(
+                    RecentlyInstalledFolderId, WorkProfileFolderId, PrivateSpaceFolderId))
+        }.map { app ->
+            val original = folders[app.folderId]?.name ?: app.originalLabel
+            app.copy(label = renames[app.key] ?: original, originalLabel = original,
+                showWorkIndicator = state.settings.workProfile.showIndicator)
+        }
+        val apps = preview.filter { it.folderId == null && !it.isGraceButton &&
+            (it.shortcut == null || it.key in state.shownShortcutKeys) }.sortedWith(LauncherAppOrder)
+        val favorites = categoryFavoriteOrder(state.settings, favoritesStore.savedFavorites().orEmpty())
+        _uiState.update { it.copy(apps = apps,
+            shortcutApps = preview.filter { app -> app.shortcut != null } + it.shortcutApps.filter(LauncherApp::isPrivateSpace),
+            folderApps = preview.filter { app -> app.folderId != null &&
+                app.folderId != WorkProfileFolderId && app.folderId != PrivateSpaceFolderId },
+            workFolderApp = preview.firstOrNull { app -> app.folderId == WorkProfileFolderId } ?: it.workFolderApp,
+            privateFolderApp = preview.firstOrNull { app -> app.folderId == PrivateSpaceFolderId } ?: it.privateFolderApp,
+            workProfiles = preview.filter(LauncherApp::isWorkProfile).mapNotNull { app ->
+                app.user?.let { user -> app.userSerial?.let { serial -> WorkProfile(user, serial) } }
+            }.distinct(),
+            graceButtonApp = preview.firstOrNull { app -> app.isGraceButton } ?: it.graceButtonApp,
+            favoriteKeys = favorites.toSet(), favoriteOrder = favorites) }
+    }
+
+    private suspend fun restoreStartupPreview() {
+        if (!startupPreviewPending) return
+        val key = startupCacheKey()
+        val entryKeys = previewEntryKeys()
+        val repositoryRevision = appRepository.revision.value
+        val favorites = favoritesStore.savedFavorites().orEmpty().toSet()
+        val priority = favorites + _uiState.value.folders.filter { it.key in favorites }.flatMap { it.appKeys }
+        suspend fun publish(entries: List<LauncherApp>) = withContext(Dispatchers.Main.immediate) {
+            if (repositoryRevision == appRepository.revision.value && key == startupCacheKey() &&
+                entryKeys == previewEntryKeys()) publishPreview(entries)
+        }
+        try {
+            val memory = LauncherCatalogMemory.read(key)
+            if (memory != null) {
+                val entries = memory.entries.filter { memory.entryKeys[it.key] == entryKeys[it.key] }
+                publish(entries.filter { it.user == null && it.userSerial == null })
+                publish(appCache.validatePublicApps(entries))
+            } else {
+                appCache.load(key, priorityKeys = priority, entryKeys = entryKeys, onPreview = ::publish)?.let {
+                    publish(it)
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Log.w("LauncherViewModel", "Unable to restore launcher preview", error)
+        }
+        // A setting change during IO gets another attempt with its own key.
+        if (repositoryRevision == appRepository.revision.value && key == startupCacheKey() &&
+            entryKeys == previewEntryKeys()) startupPreviewPending = false
+    }
+
+    private fun refreshIconPackChoices() {
+        if (iconPackDiscoveryJob?.isActive == true) return
+        iconPackDiscoveryJob = viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingIconPacks = true) }
+            try {
+                val installed = iconPacks.installedPacks()
+                _uiState.update { it.copy(iconPacks = installed, isLoadingIconPacks = false, iconPacksLoadFailed = false) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isLoadingIconPacks = false, iconPacksLoadFailed = true) }
+            }
+        }
+    }
+
+    private fun refreshCatalog() {
+        if (!itemsReady || _uiState.value.isLoadingSettings || _uiState.value.settingsLoadFailed) return
+        if (appLoadJob?.isActive == true || catalogRefresh.pending(catalogInputs()) == null) return
+        appLoadJob = viewModelScope.launch {
+            // Resumes share this job. A change during IO queues one pass for the latest inputs.
+            while (true) {
+                val request = catalogRefresh.start(catalogInputs()) ?: break
+                val iconSettings = _uiState.value.settings
+                val snapshot = itemsSnapshot
+                val inputs = request.inputs
+                val cacheKey = startupCacheKey()
+                val entryKeys = previewEntryKeys()
+                refreshPrivateApps()
+                val memory = LauncherCatalogMemory.read(cacheKey)
+                if (memory != null && memory.complete && memory.repositoryRevision == inputs.repositoryRevision &&
+                    memory.iconPackRevision == inputs.iconPackRevision &&
+                    memory.profiles == inputs.profiles && memory.day == inputs.day && memory.entryKeys == entryKeys &&
+                    memory.shortcutAccess == inputs.shortcutAccess) {
+                    val preview = appCache.validatePublicApps(memory.entries)
+                    if (!catalogRefresh.isCurrent(request, catalogInputs())) continue
+                    publishPreview(preview)
+                    _uiState.update { it.copy(isLoadingApps = false, appLoadFailed = false, iconPackStatus = memory.iconPackStatus,
+                        privateFolderApp = memory.entries.firstOrNull { app -> app.folderId == PrivateSpaceFolderId },
+                        workProfiles = inputs.profiles.profiles.filter { profile ->
+                            profile.type == rikazzz.everythinglauncher.data.LauncherProfileType.Work
+                        }.map { profile -> WorkProfile(profile.user, profile.serial) }) }
+                    catalogRefresh.complete(request, inputs)
+                    refreshIconPackChoices()
+                    continue
+                }
+                _uiState.update {
+                    it.copy(isLoadingApps = true, appLoadFailed = false, hasShortcutAccess = inputs.shortcutAccess)
+                }
+                val selectedPacks = iconSettings.enabledIconPackPackages
+                val availablePacks = selectedPacks.mapNotNull { iconPacks.load(it) }
+                val status = when {
+                    selectedPacks.isEmpty() -> IconPackStatus.System
+                    availablePacks.isNotEmpty() -> IconPackStatus.Ready
+                    else -> IconPackStatus.Unavailable
+                }
+                val packsComplete = availablePacks.size == selectedPacks.size
+                retryIconPacksAfter = if (packsComplete) 0L else SystemClock.elapsedRealtime() + 30_000L
+                try {
+                    val renames = inputs.renames
+                    suspend fun decorate(app: LauncherApp): LauncherApp = itemIcons.applyDesign(app, snapshot.icons[app.key], iconSettings.iconDesign, iconSettings, inputs.themedIcons)
+                        .copy(label = renames[app.key] ?: app.originalLabel, showWorkIndicator = iconSettings.workProfile.showIndicator)
+                    val needsPersonalPreview = _uiState.value.apps.isEmpty()
+                    val personalPreview: suspend (List<LauncherApp>) -> Unit = { personal ->
+                        val favorites = favoritesStore.savedFavorites().orEmpty().toSet()
+                        val preview = mutableListOf<LauncherApp>()
+                        val ordered = personal.sortedBy { it.key !in favorites }
+                        for ((index, app) in ordered.withIndex()) {
+                            preview += decorate(app)
+                            if (index == ordered.lastIndex || (app.key in favorites && ordered.getOrNull(index + 1)?.key !in favorites)) {
+                                withContext(Dispatchers.Main.immediate) {
+                                    if (catalogRefresh.isCurrent(request, catalogInputs())) publishPreview(preview.toList())
+                                }
+                            }
+                        }
+                    }
+                    val catalog = appRepository.loadCatalog(inputs.profiles, selectedPacks,
+                        onPersonalApps = personalPreview.takeIf { needsPersonalPreview })
+                    val workProfiles = catalog.workProfiles
+                    val apps = catalog.apps
+                    val shortcuts = snapshot.shortcuts.mapNotNull { saved ->
+                        // Package names alone cannot distinguish personal and work installations.
+                        val owners = apps.filter { app -> if (app.userSerial == null) !saved.itemKey.startsWith("profile:")
+                            else saved.itemKey.startsWith("profile:${app.userSerial}:shortcut:") }
+                        val owner = owners.firstOrNull { it.componentName.flattenToString() == saved.activity }
+                            ?: owners.firstOrNull { it.packageName == saved.packageName } ?: return@mapNotNull null
+                        val current = shortcutRepository.shortcutsFor(owner).shortcuts.firstOrNull { it.id == saved.shortcutId }
+                            ?: LauncherShortcut(saved.shortcutId, saved.packageName, saved.label, owner.icon, owner.componentName)
+                        decorate(current.asApp(owner))
+                    }
+                    val shown = snapshot.shortcuts.filter { it.showInAppList }.map { it.itemKey }.toSet()
+                    val displayedApps = (apps.map { decorate(it) } + shortcuts.filter { it.key in shown })
+                        .sortedWith(LauncherAppOrder)
+                    // Keep this virtual folder out of the editable folder table, but
+                    // render its saved icon through the same item-icon pipeline.
+                    val recentFolder = LauncherFolder(RecentlyInstalledFolderId,
+                        ContextCompat.getString(getApplication(), rikazzz.everythinglauncher.R.string.recently_installed),
+                        emptyList(), FolderPlacement.AppList)
+                    val folderApps = (_uiState.value.folders + recentFolder).map { folder ->
+                        decorate(folder.asApp())
+                    }
+                    val privateFolderApp = decorate(_uiState.value.privateFolder.asApp())
+                    val workFolderApp = decorate(_uiState.value.workFolder.asApp())
+                    val graceButtonApp = itemIcons.apply(GraceButtonIcon.item(getApplication()),
+                        GraceButtonIcon.choice(snapshot.icons[GraceButtonIcon.key]), iconSettings)
+                    // Do not publish a theme/package revision superseded while IO was running.
+                    if (!catalogRefresh.isCurrent(request, catalogInputs())) continue
+                    val legacyFavorites = favoritesStore.favoritesFor(displayedApps)
+                    val favorites = categoryFavoriteOrder(_uiState.value.settings, legacyFavorites)
+                    _uiState.update {
+                        it.copy(
+                            apps = displayedApps,
+                            shortcutApps = shortcuts + it.shortcutApps.filter(LauncherApp::isPrivateSpace),
+                            folderApps = folderApps,
+                            privateFolderApp = privateFolderApp,
+                            workFolderApp = workFolderApp,
+                            graceButtonApp = graceButtonApp,
+                            workProfiles = workProfiles,
+                            favoriteKeys = favorites.toSet(),
+                            favoriteOrder = favorites,
+                            // Settings also has an independent Activity/ViewModel.
+                            // Refresh legacy preferences when returning to HOME.
+                            categories = preferences.categories(),
+                            textMode = preferences.textMode,
+                            themedIcons = iconSettings.iconDesign?.design?.withThemeDefaults(IconDesign.defaults(preferences.themedIcons))?.themeIcons
+                                ?: preferences.themedIcons,
+                            iconPackStatus = status,
+                            isLoadingApps = false,
+                        )
+                    }
+                    if (_uiState.value.settings.appCategories == null) {
+                        persistSettings { settingsRepository.migrateAppCategories(legacyFavorites) }
+                    }
+                    // Optional profile failures are retried by the shared repository. Successful
+                    // personal/public rows still become a valid UI revision and disk preview.
+                    catalogRefresh.complete(request, request.inputs)
+                    if (catalog.complete) followRenamedApps(apps.map { it.key }, legacyFavorites)
+                    val entries =displayedApps + shortcuts + folderApps + privateFolderApp + workFolderApp + graceButtonApp
+                    LauncherCatalogMemory.publish(LauncherCatalogMemory.Snapshot(cacheKey, entryKeys,
+                        inputs.repositoryRevision, inputs.iconPackRevision, inputs.profiles, inputs.day, inputs.shortcutAccess, entries, status,
+                        catalog.complete && packsComplete))
+                    refreshIconPackChoices()
+                    // Publish first; PNG encoding and disk I/O run on Dispatchers.IO.
+                    appCache.save(cacheKey, entries, entryKeys = entryKeys)
+                    shortcutRepository.prefetch(_uiState.value.favoriteApps)
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    if (catalogRefresh.isCurrent(request, catalogInputs())) {
+                        _uiState.update { it.copy(isLoadingApps = false, appLoadFailed = true) }
+                        return@launch // Leave this revision pending so the next resume/retry can load it.
+                    }
+                }
+            }
+        }
+    }
+
+    private fun refreshPrivateApps() {
+        privateAppLoadJob?.cancel()
+        val state = _uiState.value
+        val snapshot = itemsSnapshot
+        val profile = state.privateSpace
+        val user = profile.user
+        if (user == null || !state.settings.privateSpace.enabled || !itemsReady || state.isLoadingSettings || state.settingsLoadFailed ||
+            (state.settings.privateSpace.protectsApps && (!profile.accessible || profile.locked))) {
+            _uiState.update { it.copy(privateAppsLoading = false, privateAppsFailed = false) }
+            return
+        }
+        privateAppLoadJob = viewModelScope.launch {
+            _uiState.update { it.copy(privateAppsLoading = true, privateAppsFailed = false) }
+            try {
+                val settings = state.settings
+                if (privateRawSerial != profile.serial) {
+                    privateRawApps = privateAppCache.load(user, profile.serial)
+                    privateSavedApps = privateRawApps
+                    privateRawSerial = profile.serial
+                }
+                // This query never disables quiet mode or opens a credential UI.
+                // Some systems suppress locked profiles; retain the last known inventory then.
+                try {
+                    val queried = appRepository.loadPrivateApps(user, profile.serial, emptyList())
+                    if (queried.isNotEmpty() || !profile.locked) {
+                        val previous = privateRawApps.associateBy(LauncherApp::key)
+                        privateRawApps = queried.map { app ->
+                            if (app.icon != null) app else app.copy(icon = previous[app.key]?.icon,
+                                monochromeIcon = previous[app.key]?.monochromeIcon,
+                                profileIconSource = previous[app.key]?.profileIconSource,
+                                originalIconColor = previous[app.key]?.originalIconColor)
+                        }
+                        // Opening/unlocking or changing a theme isn't a change to
+                        // source artwork. Avoid recompressing every PNG and writing it again.
+                        try {
+                            if (privateRawApps != privateSavedApps) {
+                                privateAppCache.save(profile.serial, privateRawApps)
+                                privateSavedApps = privateRawApps
+                            }
+                        }
+                        catch (error: Exception) {
+                            if (error is CancellationException) throw error
+                            Log.w("LauncherViewModel", "Unable to cache private app inventory", error)
+                        }
+                    }
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    if (privateRawApps.isEmpty()) throw error
+                }
+                val packed = appRepository.applyIconPacks(privateRawApps, settings.enabledIconPackPackages)
+                val apps = packed.map { app ->
+                    itemIcons.applyDesign(app, snapshot.icons[app.key], settings.iconDesign, settings, preferences.themedIcons)
+                }
+                val savedShortcuts = snapshot.shortcuts.filter { it.itemKey.startsWith("profile:${profile.serial}:shortcut:") }
+                    .mapNotNull { saved ->
+                        val owner = packed.firstOrNull { it.componentName.flattenToString() == saved.activity }
+                            ?: packed.firstOrNull { it.packageName == saved.packageName } ?: return@mapNotNull null
+                        val current = if (!profile.locked) shortcutRepository.shortcutsFor(owner).shortcuts.firstOrNull { it.id == saved.shortcutId } else null
+                        val shortcut = current ?: LauncherShortcut(saved.shortcutId, saved.packageName, saved.label, owner.icon,
+                            owner.componentName, user = user, userSerial = profile.serial, isPrivateSpace = true)
+                        val app = shortcut.asApp(owner)
+                        itemIcons.applyDesign(app, snapshot.icons[app.key], settings.iconDesign, settings, preferences.themedIcons)
+                    }
+                val renames = preferences.renames()
+                // Cache visibility is determined by settings; never publish another profile's inventory.
+                if (privateSpaceController.state.value.user == user && privateSpaceController.state.value.serial == profile.serial &&
+                    _uiState.value.settings.privateSpace.enabled) {
+                    _uiState.update { it.copy(privateApps = apps.map { app -> app.copy(label = renames[app.key] ?: app.originalLabel) },
+                        shortcutApps = it.shortcutApps.filterNot(LauncherApp::isPrivateSpace) + savedShortcuts.map { app -> app.copy(label = renames[app.key] ?: app.originalLabel) },
+                        privateAppsLoading = false) }
+                }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                _uiState.update { it.copy(privateAppsLoading = false, privateAppsFailed = true) }
+            }
+        }
+    }
+
+    /** Reads a local provider or the latest Gadgetbridge push; never starts a network weather request. */
+    fun refreshWeather(force: Boolean = true) {
+        val state = _uiState.value
+        if (state.isLoadingSettings || state.settingsLoadFailed || !state.settings.weatherEnabled) {
+            weatherLoadJob?.cancel()
+            lastWeatherRefresh = 0L
+            lastWeatherRequest = null
+            _uiState.update { it.copy(weather = WeatherState()) }
+            return
+        }
+        val connection = state.settings.weatherConnection
+        val gadgetbridge = connection.mode == WeatherConnectionMode.Gadgetbridge
+        val locationId = if (gadgetbridge) connection.gadgetbridgeLocationId else state.settings.weatherLocationId
+        val request = Triple(connection.mode, locationId, if (gadgetbridge) connection.temperatureUnit.resolvedUnit() else null)
+        val sameRequest = request == lastWeatherRequest
+        if (!force && sameRequest && (weatherLoadJob?.isActive == true ||
+                (state.weather.status == WeatherStatus.Ready &&
+                    SystemClock.elapsedRealtime() - lastWeatherRefresh < 15 * 60_000L))) return
+        weatherLoadJob?.cancel()
+        lastWeatherRequest = request
+        weatherLoadJob = viewModelScope.launch {
+            val previous = _uiState.value.weather
+            _uiState.update { it.copy(weather = previous.copy(status = WeatherStatus.Loading,
+                snapshot = previous.snapshot.takeIf { sameRequest && (previous.selectedLocationId == locationId || locationId == null) })) }
+            val weather = if (gadgetbridge) gadgetbridgeWeatherRepository.load(connection) else weatherRepository.load(locationId)
+            lastWeatherRefresh = SystemClock.elapsedRealtime()
+            _uiState.update { it.copy(weather = weather) }
+        }
+    }
+
+    /** Only an explicit refresh/retry or completed permission request uses this entry point. */
+    fun refreshSchedule() {
+        requestScheduleRead(automatic = false)
+        updateCalendarRefreshPolicy()
+    }
+
+    fun refreshCalendarSources() {
+        if (!hasCalendarPermission()) {
+            calendarSourcesLoadJob?.cancel()
+            _uiState.update { it.copy(calendarSources = emptyList(), calendarSourcesStatus = ScheduleStatus.PermissionRequired) }
+            return
+        }
+        if (calendarSourcesLoadJob?.isActive == true) return
+        calendarSourcesLoadJob = viewModelScope.launch {
+            _uiState.update { it.copy(calendarSourcesStatus = ScheduleStatus.Loading) }
+            try {
+                val calendars = calendarRepository.calendars()
+                val allowed = hasCalendarPermission()
+                _uiState.update { it.copy(calendarSources = if (allowed) calendars else emptyList(), calendarSourcesStatus =
+                    if (allowed) ScheduleStatus.Ready else ScheduleStatus.PermissionRequired) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _uiState.update { it.copy(calendarSources = emptyList(), calendarSourcesStatus =
+                    if (hasCalendarPermission()) ScheduleStatus.Error else ScheduleStatus.PermissionRequired) }
+            }
+        }
+    }
+
+    fun setCalendarForeground(active: Boolean) {
+        if (calendarForeground == active) return
+        calendarForeground = active
+        updateCalendarRefreshPolicy()
+        updateTasksPolicy()
+    }
+
+    fun refreshTasks() = updateTasksPolicy()
+
+    fun completeTask(id: Long, onResult: (TaskCompletionResult) -> Unit) {
+        val state = _uiState.value
+        if (state.isLoadingSettings || state.settingsLoadFailed || !state.settings.calendar.tasksOrg.enabled ||
+            id in state.completingTaskIds) return
+        val task = state.tasks.tasks.firstOrNull { it.id == id } ?: return
+        if (task.isReadOnly) {
+            onResult(TaskCompletionResult.ReadOnly)
+            return
+        }
+        _uiState.update { it.copy(completingTaskIds = it.completingTaskIds + id) }
+        viewModelScope.launch {
+            try {
+                val result = tasksRepository.completeTask(id)
+                if (result == TaskCompletionResult.Success || result == TaskCompletionResult.NotFound) {
+                    val current = _uiState.value
+                    if (current.settings.calendar.tasksOrg.enabled && !current.settingsLoadFailed) {
+                        // A recurring task can keep its ID and advance to the next date. Adopt the
+                        // provider result before re-enabling its checkbox, rather than deleting it.
+                        tasksRepository.refresh(current.settings.calendar.tasksOrg.selectedListIds)?.let(::adoptTasksSnapshot)
+                    }
+                }
+                onResult(result)
+            } finally {
+                _uiState.update { it.copy(completingTaskIds = it.completingTaskIds - id) }
+            }
+        }
+    }
+
+    private fun adoptTasksSnapshot(snapshot: TasksSnapshot?) {
+        val state = _uiState.value
+        if (state.isLoadingSettings || state.settingsLoadFailed) return
+        val preferences = state.settings.calendar.tasksOrg
+        if (!preferences.enabled) {
+            _uiState.update { it.copy(tasks = TasksState()) }
+            return
+        }
+        val matching = snapshot?.takeIf { it.listIds == preferences.selectedListIds }
+        _uiState.update {
+            val cached = matching?.state ?: it.tasks.copy(status = TasksStatus.Loading, tasks = emptyList())
+            val hasCachedData = cached.status == TasksStatus.Ready || cached.tasks.isNotEmpty() || cached.lists.isNotEmpty()
+            it.copy(tasks = if (hasCachedData && !tasksRepository.hasReadPermission())
+                TasksState(TasksStatus.PermissionRequired) else cached)
+        }
+    }
+
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private fun updateTasksPolicy() {
+        tasksObservationJob?.cancel()
+        tasksObservationJob = null
+        val state = _uiState.value
+        if (state.isLoadingSettings || state.settingsLoadFailed) return
+        if (!state.settings.calendar.tasksOrg.enabled) {
+            tasksReadPending = false
+            tasksRepository.clearSnapshot()
+            _uiState.update { it.copy(tasks = TasksState()) }
+            return
+        }
+        adoptTasksSnapshot(tasksRepository.snapshots.value)
+        if (!calendarForeground) return
+        tasksObservationJob = viewModelScope.launch {
+            // A provider edit may notify several endpoints. One trailing read handles the burst.
+            tasksRepository.changes().debounce(250L).collect { requestTasksRead() }
+        }
+    }
+
+    private fun requestTasksRead() {
+        val state = _uiState.value
+        if (state.isLoadingSettings || state.settingsLoadFailed || !state.settings.calendar.tasksOrg.enabled) return
+        if (tasksLoadJob?.isActive == true) {
+            tasksReadPending = true
+            return
+        }
+        val load = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                do {
+                    tasksReadPending = false
+                    val current = _uiState.value
+                    if (!current.settings.calendar.tasksOrg.enabled || current.isLoadingSettings || current.settingsLoadFailed) break
+                    _uiState.update { it.copy(tasks = it.tasks.copy(status = TasksStatus.Loading)) }
+                    tasksRepository.refresh(current.settings.calendar.tasksOrg.selectedListIds)?.let(::adoptTasksSnapshot)
+                } while (tasksReadPending && calendarForeground)
+            } finally { tasksLoadJob = null }
+        }
+        tasksLoadJob = load
+        load.start()
+    }
+
+    fun setCalendarHomeVisible(visible: Boolean) {
+        if (calendarHomeVisible == visible) return
+        calendarHomeVisible = visible
+        calendarHomeRefreshPending = visible
+        if (visible) updateCalendarRefreshPolicy()
+    }
+
+    private fun hasCalendarPermission() = ContextCompat.checkSelfPermission(
+        getApplication<Application>(), Manifest.permission.READ_CALENDAR,
+    ) == PackageManager.PERMISSION_GRANTED
+
+    private fun ensureScheduleAccess(): Boolean {
+        val state = _uiState.value
+        if (state.isLoadingSettings || state.settingsLoadFailed) return false
+        if (!state.settings.calendarAgenda || !hasCalendarPermission()) {
+            pendingScheduleRead = null
+            // The physical provider read may still be finishing. Do not let a later
+            // re-enable/grant coalesce with this now-invalid request.
+            activeScheduleRead = null
+            calendarRepository.clearSnapshot()
+            _uiState.update { it.copy(events = emptyList(), scheduleStatus =
+                if (it.settings.calendarAgenda) ScheduleStatus.PermissionRequired else ScheduleStatus.Ready) }
+            return false
+        }
+        return true
+    }
+
+    private fun adoptCalendarSnapshot(snapshot: CalendarSnapshot?) {
+        val state = _uiState.value
+        if (state.isLoadingSettings || state.settingsLoadFailed) return
+        if (!state.settings.calendarAgenda || !hasCalendarPermission()) {
+            _uiState.update { it.copy(events = emptyList(), scheduleStatus =
+                if (it.settings.calendarAgenda) ScheduleStatus.PermissionRequired else ScheduleStatus.Ready) }
+            return
+        }
+        val matching = snapshot?.takeIf { it.query == state.settings.calendar.query }
+        _uiState.update { it.copy(events = matching?.events.orEmpty(), scheduleStatus = when {
+            activeScheduleRead?.query == it.settings.calendar.query -> ScheduleStatus.Loading
+            else -> ScheduleStatus.Ready
+        }) }
+    }
+
+    private fun updateCalendarRefreshPolicy() {
+        schedulePollingJob?.cancel()
+        schedulePollingJob = null
+        pendingScheduleRead = pendingScheduleRead?.takeUnless { it.automatic }
+        if (!ensureScheduleAccess()) return
+        adoptCalendarSnapshot(calendarRepository.snapshots.value)
+        val preferences = _uiState.value.settings.calendar
+        if (preferences.refreshMode == CalendarRefreshMode.Manual) {
+            calendarHomeRefreshPending = false
+            pendingScheduleRead = pendingScheduleRead?.takeUnless { it.automatic }
+            return
+        }
+        if (!calendarForeground) return
+        if (calendarHomeRefreshPending && calendarHomeVisible) {
+            calendarHomeRefreshPending = false
+            requestScheduleRead(automatic = true)
+        }
+        val interval = preferences.refreshMode.intervalMillis ?: return
+        schedulePollingJob = viewModelScope.launch {
+            while (isActive) {
+                val snapshot = calendarRepository.snapshots.value?.takeIf { it.query == preferences.query }
+                val remaining = snapshot?.let {
+                    interval - (SystemClock.elapsedRealtimeNanos() - it.refreshedAtNanos) / 1_000_000L
+                } ?: 0L
+                if (remaining > 0L) {
+                    delay(remaining)
+                    continue
+                }
+                requestScheduleRead(automatic = true)
+                delay(interval)
+            }
+        }
+    }
+
+    private fun requestScheduleRead(automatic: Boolean) {
+        if (!ensureScheduleAccess()) return
+        val preferences = _uiState.value.settings.calendar
+        if (automatic && preferences.refreshMode == CalendarRefreshMode.Manual) return
+        val request = ScheduleReadRequest(preferences.query, automatic)
+        if (scheduleLoadJob?.isActive == true) {
+            // Duplicate resume/timer/manual signals share the current read. A changed
+            // horizon or source selection replaces just one pending request, rather than restarting IO.
+            if (activeScheduleRead?.query == request.query) {
+                pendingScheduleRead = null
+                if (!automatic) activeScheduleRead = request
+            } else if (pendingScheduleRead?.let { it.query == request.query && !it.automatic } != true) {
+                pendingScheduleRead = request
+            }
+            return
+        }
+        pendingScheduleRead = request
+        val load = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                while (true) {
+                    val next = pendingScheduleRead ?: break
+                    pendingScheduleRead = null
+                    if (!ensureScheduleAccess()) break
+                    val current = _uiState.value.settings.calendar
+                    if (current.query != next.query ||
+                        (next.automatic && (!calendarForeground || current.refreshMode == CalendarRefreshMode.Manual))) continue
+                    activeScheduleRead = next
+                    _uiState.update { it.copy(scheduleStatus = ScheduleStatus.Loading) }
+                    try {
+                        calendarRepository.refresh(next.query)?.let(::adoptCalendarSnapshot)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        if (ensureScheduleAccess() && _uiState.value.settings.calendar.query == next.query) {
+                            _uiState.update { it.copy(scheduleStatus = ScheduleStatus.Error) }
+                        }
+                    } finally {
+                        activeScheduleRead = null
+                    }
+                }
+            } finally {
+                activeScheduleRead = null
+                scheduleLoadJob = null
+                _uiState.update {
+                    if (it.scheduleStatus == ScheduleStatus.Loading) it.copy(scheduleStatus = ScheduleStatus.Ready) else it
+                }
+            }
+        }
+        scheduleLoadJob = load
+        load.start()
+    }
+
+    fun launch(app: LauncherApp, bounds: Rect? = null, options: Bundle? = null, fromSearch: Boolean = false): Boolean {
+        if (app.folderId != null) return false
+        if (app.isPrivateSpace && !privateSpaceController.prepareAppLaunch(app.user, app.key)) return false
+        if (!app.isPrivateSpace) privateSpaceController.close()
+        val launched = app.shortcut?.let { shortcutRepository.launch(it, bounds, options) } ?: appRepository.launch(app, bounds, options)
+        if (app.isPrivateSpace) privateSpaceController.finishAppLaunch(launched)
+        if (launched && fromSearch && (!app.isPrivateSpace || _uiState.value.settings.privateSpace.exposesApps)) {
+            updateSettings { it.copy(search = it.search.recordApp(app.key)) }
+        }
+        return launched
+    }
+
+    fun preparePrivateAppLaunch(app: LauncherApp): Boolean = privateSpaceController.prepareAppLaunch(app.user, app.key)
+
+    private fun shortcutAppearanceInputs(app: LauncherApp, result: ShortcutResult): List<Any?> {
+        val settings = _uiState.value.settings
+        val resources = getApplication<Application>().resources
+        return listOf(result, app, settings.iconDesign, settings.enabledIconPackPackages,
+            settings.darkMode, settings.useDynamicColors, settings.themeColor, settings.paletteStyle, settings.amoledMode,
+            result.shortcuts.map { itemsSnapshot.icons[it.key] }, preferences.themedIcons,
+            Configuration(resources.configuration), LocalDate.now(), launcherThemeSeed(resources, true, settings.themeColor))
+    }
+
+    suspend fun loadShortcuts(app: LauncherApp): ShortcutResult {
+        val source = shortcutRepository.shortcutsFor(app)
+        val inputs = shortcutAppearanceInputs(app, source)
+        styledShortcuts[app.key]?.takeIf { it.inputs == inputs }?.let { return it.result }
+        val settings = _uiState.value.settings
+        val icons = itemsSnapshot.icons
+        val result = source.copy(styledApps = source.shortcuts.associate { shortcut ->
+            val item = shortcut.asApp(app)
+            item.key to itemIcons.applyDesign(item, icons[item.key], settings.iconDesign, settings, preferences.themedIcons)
+        })
+        // A settings change or provider invalidation during IO must not become the next warm result.
+        if (inputs == shortcutAppearanceInputs(app, source) && shortcutRepository.peek(app) == source) {
+            styledShortcuts.put(app.key, StyledShortcuts(inputs, result))
+        }
+        return result
+    }
+
+    fun cachedShortcuts(app: LauncherApp): ShortcutResult? {
+        val source = shortcutRepository.peek(app) ?: return null
+        return styledShortcuts[app.key]?.takeIf { it.inputs == shortcutAppearanceInputs(app, source) }?.result ?: source
+    }
+
+    fun prepareShortcuts(app: LauncherApp) {
+        viewModelScope.launch { loadShortcuts(app) }
+    }
+
+    fun preparePrivateShortcutLaunch(shortcut: LauncherShortcut): Boolean =
+        privateSpaceController.prepareAppLaunch(shortcut.user, shortcut.key)
+
+    fun launchShortcut(shortcut: LauncherShortcut, bounds: Rect? = null, options: Bundle? = null): Boolean {
+        if (shortcut.isPrivateSpace && !preparePrivateShortcutLaunch(shortcut)) return false
+        if (!shortcut.isPrivateSpace) privateSpaceController.close()
+        val launched = shortcutRepository.launch(shortcut, bounds, options)
+        if (shortcut.isPrivateSpace) privateSpaceController.finishAppLaunch(launched)
+        return launched
+    }
+
+    override fun onCleared() {
+        getApplication<Application>().unregisterReceiver(dateReceiver)
+        shortcutRepository.close()
+        mediaRepository.close()
+    }
+
+    fun controlMedia(sessionId: String, command: MediaCommand): Boolean = mediaRepository.command(sessionId, command)
+    fun dismissMedia(sessionId: String, revision: Long): Boolean {
+        // Recheck live playback after the exit animation, not only the gesture's starting state.
+        if (_uiState.value.settings.mediaKeepWhilePlaying && mediaRepository.state.value.nowPlaying?.playing == true) return false
+        return mediaRepository.dismiss(sessionId, revision)
+    }
+    fun dismissNotification(key: String, revision: Long): Boolean = appNotifications.dismiss(key, revision)
+    fun openNotification(key: String, revision: Long): Boolean = appNotifications.open(getApplication(), key, revision)
+
+    fun renameApp(app: LauncherApp, label: String) {
+        if (app.folderId == RecentlyInstalledFolderId) {
+            updateSettings { it.copy(listAppearance = it.listAppearance.copy(
+                recentlyInstalledName = label.trim().takeIf(String::isNotEmpty))) }
+            return
+        }
+        if (app.folderId == WorkProfileFolderId) {
+            updateSettings { it.copy(workProfile = it.workProfile.copy(name = label.trim().ifBlank { WorkProfileDefaultName })) }
+            return
+        }
+        if (app.folderId == PrivateSpaceFolderId) {
+            updateSettings { it.copy(privateSpace = it.privateSpace.copy(name = label.trim().ifBlank { PrivateSpaceDefaultName })) }
+            return
+        }
+        if (app.folderId != null) {
+            updateFolder(app.folderId, label, null)
+            return
+        }
+        preferences.rename(app.key, label)
+        if (app.shortcut != null) persistSettings { itemsRepository.rememberShortcut(app) }
+        _uiState.update { state ->
+            state.copy(apps = state.apps.map {
+                if (it.key == app.key) it.copy(label = label.trim().ifBlank { it.originalLabel }) else it
+            }.sortedWith(LauncherAppOrder), shortcutApps = state.shortcutApps.map {
+                if (it.key == app.key) it.copy(label = label.trim().ifBlank { it.originalLabel }) else it
+            }, privateApps = state.privateApps.map {
+                if (it.key == app.key) it.copy(label = label.trim().ifBlank { it.originalLabel }) else it
+            }, itemRevision = state.itemRevision + 1)
+        }
+    }
+
+    fun reorderPrivateApps(keys: List<String>) = updateSettings {
+        it.copy(privateSpace = it.privateSpace.copy(appOrder = keys.distinct()))
+    }
+
+    fun reorderWorkApps(keys: List<String>) = updateSettings {
+        it.copy(workProfile = it.workProfile.copy(appOrder = keys.distinct()))
+    }
+
+    suspend fun resetWorkProfileAppearance(): Boolean {
+        if (!setItemIcon(_uiState.value.workFolder.asApp(), null)) return false
+        updateSettings { it.copy(workProfile = it.workProfile.copy(name = WorkProfileDefaultName)) }
+        return true
+    }
+
+    suspend fun resetPrivateSpaceAppearance(): Boolean {
+        if (!setItemIcon(_uiState.value.privateFolder.asApp(), null)) return false
+        updateSettings { it.copy(privateSpace = it.privateSpace.copy(name = PrivateSpaceDefaultName)) }
+        return true
+    }
+
+    suspend fun setItemIcon(app: LauncherApp, choice: ItemIcon?): Boolean = settingsWriteMutex.withLock {
+        try {
+            val previous = itemsSnapshot.icons[app.key]
+            itemsRepository.rememberShortcut(app)
+            itemsRepository.saveIcon(app.key, choice)
+            if (previous?.kind == "image" && (choice?.kind != "image" || previous.source != choice.source) &&
+                !itemsRepository.isImageReferenced(previous.source)) itemIcons.deleteImage(previous)
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            false
+        }
+    }
+
+    suspend fun importItemIcon(app: LauncherApp, uri: Uri): Boolean {
+        var imported: ItemIcon? = null
+        return try {
+            imported = itemIcons.importImage(uri)
+            // The imported image is a fresh ItemIcon, keep the display override.
+            setItemIcon(app, imported.copy(display = itemsSnapshot.icons[app.key]?.display))
+                .also { if (!it) itemIcons.deleteImage(imported) }
+        } catch (error: Exception) {
+            itemIcons.deleteImage(imported)
+            if (error is CancellationException) throw error
+            false
+        }
+    }
+
+    fun showShortcutInAppList(app: LauncherApp, show: Boolean) = persistSettings {
+        app.shortcut?.let { shortcutRepository.pin(listOf(it)) }
+        itemsRepository.rememberShortcut(app, show)
+    }
+
+    private suspend fun rememberPopupItems(apps: List<LauncherApp>) {
+        apps.filter { it.shortcut != null }.forEach { itemsRepository.rememberShortcut(it) }
+        shortcutRepository.pin(apps.mapNotNull { it.shortcut })
+    }
+
+    suspend fun rememberShortcut(app: LauncherApp): Boolean = settingsWriteMutex.withLock {
+        try {
+            rememberPopupItems(listOf(app))
+            _uiState.update { state -> state.copy(shortcutApps = state.shortcutApps.filterNot { it.key == app.key } + app) }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            _uiState.update { it.copy(settingsSaveFailed = true) }
+            false
+        }
+    }
+
+    fun updatePopup(owner: LauncherApp, defaults: List<LauncherApp>, transform: (List<PopupItem>) -> List<PopupItem>) = persistSettings {
+        rememberPopupItems(defaults + listOf(owner))
+        val removed = itemsRepository.updatePopup(owner.key, defaults.map { PopupItem(it.key) }, transform)
+        val host = rikazzz.everythinglauncher.platform.HomeWidgetHost(getApplication())
+        removed.forEach { runCatching { host.deleteAppWidgetId(it) } }
+    }
+
+    suspend fun ensurePopup(owner: LauncherApp, defaults: List<LauncherApp>): Boolean = settingsWriteMutex.withLock {
+        try {
+            rememberPopupItems(defaults + listOf(owner))
+            itemsRepository.updatePopup(owner.key, defaults.map { PopupItem(it.key) }) { it }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            false
+        }
+    }
+
+    fun categorize(app: LauncherApp, category: String?) {
+        preferences.categorize(app.key, category)
+        _uiState.update { it.copy(categories = preferences.categories()) }
+    }
+
+    fun setTextMode(mode: WallpaperTextMode) {
+        preferences.textMode(mode)
+        _uiState.update { it.copy(textMode = mode) }
+    }
+
+    fun setThemedIcons(enabled: Boolean) {
+        preferences.themedIcons(enabled)
+        _uiState.update { it.copy(themedIcons = enabled) }
+    }
+
+    fun refreshUsage(forceRanking: Boolean = false) {
+        val state = _uiState.value
+        if (state.isLoadingSettings || state.settingsLoadFailed) return
+        val settings = state.settings.digitalWellbeing
+        val needOpenCounts = state.needsCategoryOpenCounts
+        val access = usageRepository.hasAccess()
+        if (!settings.enabled || !access) {
+            usageLoadJob?.cancel()
+            _uiState.update { it.copy(usage = rikazzz.everythinglauncher.data.UsageSnapshot(hasAccess = access)) }
+        } else if (usageLoadJob?.isActive == true && !forceRanking) return
+        if (forceRanking) usageLoadJob?.cancel()
+        if (settings.enabled && access) _uiState.update { it.copy(usage = it.usage.copy(hasAccess = true, loading = true)) }
+        usageLoadJob = viewModelScope.launch {
+            val result = usageRepository.refresh(settings, forceRanking, needOpenCounts)
+            if (_uiState.value.settings.digitalWellbeing == settings && _uiState.value.needsCategoryOpenCounts == needOpenCounts)
+                _uiState.update { it.copy(usage = result) }
+        }
+    }
+
+    fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) = persistSettings {
+        settingsRepository.mutateSettings(transform)
+    }
+
+    suspend fun applyAgendaAppearance(style: rikazzz.everythinglauncher.data.AgendaAppearance,
+        widget: rikazzz.everythinglauncher.data.HomeLayout?): Boolean = settingsWriteMutex.withLock {
+        try {
+            val removed = settingsRepository.saveAgendaAppearance(style, widget)
+            val host = rikazzz.everythinglauncher.platform.HomeWidgetHost(getApplication())
+            removed.forEach { runCatching { host.deleteAppWidgetId(it) } }
+            _uiState.update { it.copy(settingsSaveFailed = false) }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.e("LauncherViewModel", "Unable to save agenda appearance", error)
+            _uiState.update { it.copy(settingsSaveFailed = true) }
+            false
+        }
+    }
+
+    suspend fun discardAgendaWidgetDraft(): Boolean = settingsWriteMutex.withLock {
+        try {
+            val removed = settingsRepository.discardAgendaWidgetDraft()
+            val host = rikazzz.everythinglauncher.platform.HomeWidgetHost(getApplication())
+            removed.forEach { runCatching { host.deleteAppWidgetId(it) } }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.e("LauncherViewModel", "Unable to discard agenda widget draft", error)
+            false
+        }
+    }
+
+    suspend fun applyMediaStyle(style: MediaPlayerStyle): Boolean = settingsWriteMutex.withLock {
+        try {
+            settingsRepository.mutateSettings { it.copy(mediaStyle = style.normalized()) }
+            _uiState.update { it.copy(settingsSaveFailed = false) }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.e("LauncherViewModel", "Unable to save media style", error)
+            _uiState.update { it.copy(settingsSaveFailed = true) }
+            false
+        }
+    }
+
+    suspend fun applyClockStyle(style: ClockStyle): Boolean = settingsWriteMutex.withLock {
+        try {
+            // A manager opened from an unsaved clock editor can delete its draft font.
+            val available = rikazzz.everythinglauncher.data.ClockFontStore(getApplication()).list().map { it.id }.toSet()
+            val regions = style.resolvedRegions()
+            val fontIds = (listOf(style.singleLine, style.twoLines) + style.presets.values + regions.primaryFaces.values).mapNotNull { it.fontId } +
+                listOfNotNull(regions.secondary.typography.fontId, regions.tertiary.typography.fontId,
+                    regions.agenda.typography.fontId, regions.tasks.typography.fontId)
+            val missing = fontIds
+                .filter { rikazzz.everythinglauncher.data.ClockFontStore.displayName(it) != null && it !in available }.toSet()
+            settingsRepository.mutateSettings { it.copy(clockStyle = style.withoutFonts(missing)) }
+            _uiState.update { it.copy(settingsSaveFailed = false) }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.e("LauncherViewModel", "Unable to save clock style", error)
+            _uiState.update { it.copy(settingsSaveFailed = true) }
+            false
+        }
+    }
+
+    suspend fun deleteFonts(ids: Set<String>): Boolean = settingsWriteMutex.withLock {
+        try {
+            val store = rikazzz.everythinglauncher.data.ClockFontStore(getApplication())
+            val imported = store.list().map { it.id }.toSet().intersect(ids)
+            // Commit reference cleanup before removing private files, so failed saves are safe.
+            settingsRepository.mutateSettings { current -> current.copy(
+                fontLibrary = current.fontLibrary.without(imported),
+                appFontId = current.appFontId.takeUnless { it in imported },
+                listAppearance = current.listAppearance.copy(fontId = current.listAppearance.fontId.takeUnless { it in imported },
+                    alphabet = current.listAppearance.alphabet.let { it.copy(fontId = it.fontId.takeUnless { id -> id in imported }) }),
+                clockStyle = current.clockStyle.withoutFonts(imported),
+            ) }
+            store.delete(imported)
+            _uiState.update { it.copy(settingsSaveFailed = false) }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.e("LauncherViewModel", "Unable to delete fonts", error)
+            _uiState.update { it.copy(settingsSaveFailed = true) }
+            false
+        }
+    }
+
+    suspend fun applyIconDesign(choice: ItemIcon): Boolean = settingsWriteMutex.withLock {
+        try {
+            var previous: ItemIcon? = null
+            // The bulk design carries the shared icon-display settings inside its
+            // JSON, the same field per-app overrides use.
+            settingsRepository.mutateSettings {
+                previous = it.iconDesign
+                it.copy(iconDesign = choice)
+            }
+            if (previous?.kind == "image" && (choice.kind != "image" || previous?.source != choice.source) &&
+                !itemsRepository.isImageReferenced(previous!!.source)) itemIcons.deleteImage(previous)
+            _uiState.update { it.copy(settingsSaveFailed = false) }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.e("LauncherViewModel", "Unable to save icon design", error)
+            _uiState.update { it.copy(settingsSaveFailed = true) }
+            false
+        }
+    }
+
+    suspend fun deleteIconDesigns(keys: Set<String>): Boolean = settingsWriteMutex.withLock {
+        try {
+            val previous = itemsRepository.resetIcons(keys)
+            previous.filter { it.kind == "image" }.distinctBy { it.source }.forEach {
+                if (!itemsRepository.isImageReferenced(it.source)) itemIcons.deleteImage(it)
+            }
+            _uiState.update { it.copy(settingsSaveFailed = false) }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.e("LauncherViewModel", "Unable to delete icon designs", error)
+            _uiState.update { it.copy(settingsSaveFailed = true) }
+            false
+        }
+    }
+
+    fun removeHomeWidget() = persistSettings {
+        var removedId = -1
+        settingsRepository.mutateSettings { current ->
+            removedId = current.homeLayout.widgetId
+            current.copy(homeLayout = current.homeLayout.withoutWidget())
+        }
+        // Deallocate only after Room commits; a storage failure must leave the widget intact.
+        if (removedId >= 0) runCatching {
+            rikazzz.everythinglauncher.platform.HomeWidgetHost(getApplication()).deleteAppWidgetId(removedId)
+        }
+    }
+
+    fun setHiddenApps(keys: Set<String>) {
+        val snapshot = keys.toSet()
+        persistSettings { settingsRepository.setHiddenApps(snapshot) }
+    }
+
+    fun hideApp(app: LauncherApp) = persistSettings { settingsRepository.hideApp(app.key) }
+
+    fun setFolderAutoHide(id: String, enabled: Boolean) = persistSettings {
+        settingsRepository.updateFolder(id, autoHideApps = enabled)
+    }
+
+    fun saveFolder(folder: LauncherFolder) {
+        val snapshot = folder.copy(appKeys = folder.appKeys.toList())
+        persistSettings {
+            rememberPopupItems(snapshot.appKeys.mapNotNull(_uiState.value::findItem))
+            settingsRepository.saveFolder(snapshot)
+        }
+    }
+
+    fun updateFolder(id: String, name: String?, placement: FolderPlacement?, appListAtBottom: Boolean? = null) = persistSettings {
+        settingsRepository.updateFolder(id, name, placement, appListAtBottom)
+    }
+
+    suspend fun setFolderFavorites(selection: Map<String, Boolean>): Boolean = settingsWriteMutex.withLock {
+        try {
+            settingsRepository.setFolderFavorites(selection)
+            _uiState.update { it.copy(settingsSaveFailed = false) }
+            true
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.e("LauncherViewModel", "Unable to save favorite folders", error)
+            _uiState.update { it.copy(settingsSaveFailed = true) }
+            false
+        }
+    }
+
+    fun deleteFolder(id: String) = persistSettings {
+        val previous = itemsSnapshot.icons["folder:$id"]
+        val removed = settingsRepository.deleteFolder(id)
+        val host = rikazzz.everythinglauncher.platform.HomeWidgetHost(getApplication())
+        removed.forEach { runCatching { host.deleteAppWidgetId(it) } }
+        if (previous?.kind == "image" && !itemsRepository.isImageReferenced(previous.source)) itemIcons.deleteImage(previous)
+    }
+
+    /** Room emissions update the UI only after the operation has committed. */
+    private fun persistSettings(write: suspend () -> Unit) {
+        viewModelScope.launch {
+            settingsWriteMutex.withLock {
+                try {
+                    write()
+                    _uiState.update { it.copy(settingsSaveFailed = false) }
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    Log.e("LauncherViewModel", "Unable to save launcher settings", error)
+                    _uiState.update { it.copy(settingsSaveFailed = true) }
+                }
+            }
+        }
+    }
+
+    fun toggleFavorite(app: LauncherApp): Boolean {
+        val state = _uiState.value
+        val profileAvailable = when (app.folderId) {
+            PrivateSpaceFolderId -> state.canFavoritePrivateSpace
+            WorkProfileFolderId -> state.canFavoriteWorkProfile
+            else -> null
+        }
+        if (profileAvailable == false) return app.key in state.favoriteKeys
+        if (app.folderId != null && profileAvailable == null) {
+            val folder = _uiState.value.folders.firstOrNull { it.id == app.folderId } ?: return false
+            val favorite = !folder.placement.inFavorites
+            persistSettings { settingsRepository.setFolderFavorites(mapOf(folder.id to favorite)) }
+            return favorite
+        }
+        if (profileAvailable == null) {
+            val selected = app.key !in state.favoriteKeys
+            toggleCategoryItem(FavoritesCategoryId, app)
+            if (selected && app.shortcut == null) prepareShortcuts(app)
+            return selected
+        }
+        val updated = favoritesStore.toggle(app.key, currentFavoriteOrder())
+        _uiState.update { it.copy(favoriteKeys = updated.toSet(), favoriteOrder = updated) }
+        if (app.folderId == null && app.key in updated) prepareShortcuts(app)
+        return app.key in updated
+    }
+
+    fun reorderFavorites(keys: List<String>) {
+        val visibleOrder = _uiState.value.homeItems.map { it.key }
+        persistSettings {
+            settingsRepository.mutateSettings { current -> current.copy(homeLayout = current.homeLayout.copy(
+                homeOrder = rikazzz.everythinglauncher.data.mergeHomeOrder(keys, current.homeLayout.homeOrder ?: visibleOrder))) }
+        }
+    }
+
+    fun saveAppCategory(category: AppCategory) = persistSettings {
+        settingsRepository.mutateAppCategories(currentFavoriteOrder()) { categories ->
+            if (categories.any { it.id == category.id }) categories else categories + category
+        }
+    }
+
+    fun updateAppCategory(id: String, transform: (AppCategory) -> AppCategory) = persistSettings {
+        settingsRepository.mutateAppCategories(currentFavoriteOrder()) { categories ->
+            categories.map { if (it.id == id) transform(it).copy(id = id) else it }
+        }
+    }
+
+    fun deleteAppCategory(id: String) {
+        if (id in BuiltInCategoryIds) return
+        persistSettings { settingsRepository.mutateAppCategories(currentFavoriteOrder()) { it.filterNot { category -> category.id == id } } }
+    }
+
+    fun toggleCategoryItem(id: String, app: LauncherApp) = persistSettings {
+        rememberPopupItems(listOf(app))
+        if (app.shortcut != null) _uiState.update { it.copy(shortcutApps = it.shortcutApps.filterNot { item -> item.key == app.key } + app) }
+        settingsRepository.mutateAppCategories(currentFavoriteOrder()) { categories -> categories.map { category ->
+            if (category.id != id || category.inclusion != CategoryInclusion.Manual) category else category.copy(itemKeys =
+                if (app.key in category.itemKeys) category.itemKeys - app.key else category.itemKeys + app.key)
+        } }
+    }
+
+    private fun categoryFavoriteOrder(settings: LauncherSettings, legacy: List<String>): List<String> =
+        settings.appCategories?.firstOrNull { it.id == FavoritesCategoryId }?.let { category ->
+            (category.itemKeys + legacy.filter { it == PrivateSpaceFolderKey || it == WorkProfileFolderKey }).distinct()
+        } ?: legacy
+
+    private fun currentFavoriteOrder(): List<String> = _uiState.value.let { state ->
+        (state.favoriteOrder + state.favoriteItems.map(LauncherApp::key)).distinct()
+    }
+
+    fun requestReturnHome() {
+        _returnHomeRequests.tryEmit(Unit)
+    }
+}
