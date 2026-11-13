@@ -222,6 +222,7 @@ internal fun SearchSettingsScreen(uiState: LauncherUiState, actions: LauncherAct
             },
             onDismiss = { engineDialog = "select" },
         )
+    }
     if (showChipsDialog) {
         AlertDialog(
             onDismissRequest = { showChipsDialog = false },
