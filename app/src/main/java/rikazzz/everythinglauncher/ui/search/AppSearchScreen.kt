@@ -175,7 +175,7 @@ internal fun AppSearchScreen(
             is SearchResult.Shortcut -> {
                 onDismiss()
                 val launch = actions.launchAppAt
-                if (launch != null) launch(result.app, bounds) else onLaunch(result.app)
+                if (launch != null && bounds != null) launch(result.app, bounds) else onLaunch(result.app)
             }
             is SearchResult.Automation -> {
                 scope.launch {
