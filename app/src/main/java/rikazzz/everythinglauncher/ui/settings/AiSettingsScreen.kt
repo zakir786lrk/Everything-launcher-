@@ -41,6 +41,7 @@ fun AiSettingsScreen(
     var selectedModel by remember { mutableStateOf(prefs.geminiModel) }
     var detectedModels by remember { mutableStateOf<List<String>>(emptyList()) }
     var isDetectingModels by remember { mutableStateOf(false) }
+    var modelDropdownExpanded by remember { mutableStateOf(false) }
 
     // Custom OpenAI / OpenRouter / Local LLM settings
     var customEndpoint by remember { mutableStateOf(prefs.customApiEndpoint) }
@@ -63,6 +64,20 @@ fun AiSettingsScreen(
 
     LaunchedEffect(Unit) {
         checkRootNow()
+    }
+
+    LaunchedEffect(apiKey) {
+        if (apiKey.isNotBlank() && detectedModels.isEmpty()) {
+            isDetectingModels = true
+            val res = agent.fetchAvailableModels(apiKey)
+            isDetectingModels = false
+            if (res.isSuccess) {
+                val models = res.getOrDefault(emptyList())
+                if (models.isNotEmpty()) {
+                    detectedModels = models
+                }
+            }
+        }
     }
 
     Scaffold(
@@ -140,67 +155,124 @@ fun AiSettingsScreen(
                     )
                 }
 
-                // Model Selection
+                // Gemini Model Dropdown
                 item {
                     Text("Gemini Model", style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(6.dp))
-                    val defaultModels = listOf("gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest")
-                    val allModels = (defaultModels + detectedModels).distinct()
 
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            allModels.take(2).forEach { model ->
-                                FilterChip(
-                                    selected = selectedModel == model,
-                                    onClick = {
-                                        selectedModel = model
-                                        prefs.geminiModel = model
-                                    },
-                                    label = { Text(model) }
-                                )
+                    val fallbackModels = listOf("gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest")
+                    val availableModels = if (detectedModels.isNotEmpty()) detectedModels else fallbackModels
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = selectedModel,
+                            onValueChange = {
+                                selectedModel = it
+                                prefs.geminiModel = it
+                            },
+                            label = { Text(if (detectedModels.isNotEmpty()) "Select Gemini Model (${detectedModels.size} available)" else "Select Gemini Model") },
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (isDetectingModels) {
+                                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                        Spacer(Modifier.width(4.dp))
+                                    }
+                                    IconButton(onClick = {
+                                        modelDropdownExpanded = !modelDropdownExpanded
+                                        if (modelDropdownExpanded && detectedModels.isEmpty() && apiKey.isNotBlank() && !isDetectingModels) {
+                                            scope.launch {
+                                                isDetectingModels = true
+                                                val res = agent.fetchAvailableModels(apiKey)
+                                                isDetectingModels = false
+                                                if (res.isSuccess) {
+                                                    val list = res.getOrDefault(emptyList())
+                                                    if (list.isNotEmpty()) detectedModels = list
+                                                }
+                                            }
+                                        }
+                                    }) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ms_expand_more),
+                                            contentDescription = "Show model dropdown"
+                                        )
+                                    }
+                                }
                             }
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            allModels.drop(2).take(3).forEach { model ->
-                                FilterChip(
-                                    selected = selectedModel == model,
-                                    onClick = {
-                                        selectedModel = model
-                                        prefs.geminiModel = model
-                                    },
-                                    label = { Text(model) }
+                        )
+
+                        DropdownMenu(
+                            expanded = modelDropdownExpanded,
+                            onDismissRequest = { modelDropdownExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 320.dp)
+                        ) {
+                            if (isDetectingModels) {
+                                DropdownMenuItem(
+                                    text = { Text("Fetching models from Gemini API...") },
+                                    onClick = {},
+                                    leadingIcon = { CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) }
                                 )
+                            } else {
+                                availableModels.forEach { model ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = model,
+                                                fontWeight = if (selectedModel == model) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (selectedModel == model) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        onClick = {
+                                            selectedModel = model
+                                            prefs.geminiModel = model
+                                            modelDropdownExpanded = false
+                                        },
+                                        leadingIcon = if (selectedModel == model) {
+                                            { Icon(painterResource(R.drawable.ms_check), contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null
+                                    )
+                                }
                             }
                         }
                     }
 
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                isDetectingModels = true
-                                val res = agent.fetchAvailableModels(apiKey)
-                                isDetectingModels = false
-                                if (res.isSuccess) {
-                                    val models = res.getOrDefault(emptyList())
-                                    if (models.isNotEmpty()) {
-                                        detectedModels = models
-                                        Toast.makeText(context, "Found ${models.size} models from Google", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "No generateContent models returned", Toast.LENGTH_SHORT).show()
-                                    }
-                                } else {
-                                    Toast.makeText(context, "Failed: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        },
-                        enabled = apiKey.isNotBlank() && !isDetectingModels
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isDetectingModels) {
-                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = if (detectedModels.isNotEmpty()) "Loaded ${detectedModels.size} models from Gemini" else "Tap Fetch to query Gemini API",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    isDetectingModels = true
+                                    val res = agent.fetchAvailableModels(apiKey)
+                                    isDetectingModels = false
+                                    if (res.isSuccess) {
+                                        val models = res.getOrDefault(emptyList())
+                                        if (models.isNotEmpty()) {
+                                            detectedModels = models
+                                            modelDropdownExpanded = true
+                                            Toast.makeText(context, "Loaded ${models.size} models from Gemini", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "No generateContent models returned", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "Failed: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            },
+                            enabled = apiKey.isNotBlank() && !isDetectingModels
+                        ) {
+                            Icon(painterResource(R.drawable.ms_update), contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Fetch from Gemini")
                         }
-                        Text("Detect Available Models from Google API")
                     }
                 }
             } else {
