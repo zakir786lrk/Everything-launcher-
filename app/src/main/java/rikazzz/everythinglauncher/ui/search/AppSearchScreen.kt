@@ -3,6 +3,8 @@ package rikazzz.everythinglauncher.ui.search
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -63,6 +65,7 @@ import rikazzz.everythinglauncher.quicksearch.WebSuggestionsUtils
 import rikazzz.everythinglauncher.ui.LauncherActions
 import rikazzz.everythinglauncher.ui.LauncherUiState
 import rikazzz.everythinglauncher.ui.components.AppIcon
+import rikazzz.everythinglauncher.ui.components.AppListSectionHeader
 import rikazzz.everythinglauncher.ui.components.LauncherLayout
 import rikazzz.everythinglauncher.ui.components.stableStatusBarInset
 import rikazzz.everythinglauncher.ui.components.LauncherSearchBar
@@ -76,6 +79,7 @@ import kotlinx.coroutines.launch
 
 private sealed interface SearchResult {
     val key: String
+    data class SectionHeader(val title: String) : SearchResult { override val key = "section:" + title }
     data class App(val app: LauncherApp) : SearchResult { override val key = "app:" + app.key }
     data class Shortcut(val app: LauncherApp) : SearchResult { override val key = "shortcut:" + app.key }
     data class CustomShortcut(val shortcut: CustomActivityShortcut) : SearchResult { override val key = "custom_shortcut:" + shortcut.id }
@@ -143,12 +147,42 @@ internal fun AppSearchScreen(
     val customShortcuts = remember(customPrefs) { customPrefs.getCustomShortcuts() }
 
     val results: List<SearchResult> = remember(
-        apps, names, contacts, query, settings, hasContactsAccess, uiState.shortcutApps, customShortcuts, webSuggestions
+        apps, names, contacts, query, settings, hasContactsAccess, uiState.shortcutApps, customShortcuts, webSuggestions,
+        customPrefs.searchShowRecentlyOpened, customPrefs.searchShowFrequentlyOpened, customPrefs.searchShowRecentlyInstalled,
+        uiState.recentlyInstalledApps, uiState.usage.openCounts
     ) {
         if (query.isEmpty()) {
             if (settings.suggestions) {
                 val byKey = apps.associateBy { it.key }
-                settings.recentAppKeys.mapNotNull(byKey::get).distinctBy { it.key }.take(5).map { SearchResult.App(it) }
+                buildList {
+                    // 1. Recently opened apps
+                    if (customPrefs.searchShowRecentlyOpened) {
+                        val recent = settings.recentAppKeys.mapNotNull(byKey::get).distinctBy { it.key }.take(5)
+                        if (recent.isNotEmpty()) {
+                            add(SearchResult.SectionHeader("Recently Opened"))
+                            recent.forEach { add(SearchResult.App(it)) }
+                        }
+                    }
+                    // 2. Frequently opened apps
+                    if (customPrefs.searchShowFrequentlyOpened) {
+                        val freq = apps.filter { it.user == null && (uiState.usage.openCounts[it.packageName] ?: 0) > 0 }
+                            .sortedWith(compareByDescending<LauncherApp> { uiState.usage.openCounts[it.packageName] ?: 0 }.then(LauncherAppOrder))
+                            .distinctBy { it.packageName }
+                            .take(5)
+                        if (freq.isNotEmpty()) {
+                            add(SearchResult.SectionHeader("Frequently Opened"))
+                            freq.forEach { add(SearchResult.App(it)) }
+                        }
+                    }
+                    // 3. Recently installed apps
+                    if (customPrefs.searchShowRecentlyInstalled) {
+                        val installed = uiState.recentlyInstalledApps.take(5)
+                        if (installed.isNotEmpty()) {
+                            add(SearchResult.SectionHeader("Recently Installed"))
+                            installed.forEach { add(SearchResult.App(it)) }
+                        }
+                    }
+                }
             } else emptyList()
         } else {
             val term = SearchQuery(query, settings.fuzzy)
@@ -175,6 +209,7 @@ internal fun AppSearchScreen(
                 val score = names?.get(app.key)?.score(term) ?: return@mapNotNull null
                 score to app
             }.sortedWith(compareBy<Pair<Int, LauncherApp>> { it.first }.thenComparator { a, b -> LauncherAppOrder.compare(a.second, b.second) })
+                .take(30)
 
             val matchedShortcuts = uiState.shortcutApps.filter {
                 it.label.contains(query, ignoreCase = true)
@@ -183,7 +218,7 @@ internal fun AppSearchScreen(
             // 5. Contacts
             val matchedContacts = if (settings.contacts && hasContactsAccess) contacts.mapNotNull { contact ->
                 contact.score(term)?.let { it to contact }
-            }.sortedBy { it.first } else emptyList()
+            }.sortedBy { it.first }.take(10) else emptyList()
 
             buildList {
                 if (calcResult != null) {
@@ -233,6 +268,7 @@ internal fun AppSearchScreen(
                 val opened = SearchLauncher.contact(context, result.contact)
                 if (opened) onDismiss() else Toast.makeText(context, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
             }
+            is SearchResult.SectionHeader -> Unit
             SearchResult.Internet -> {
                 QuickSearchEngineRegistry.launch(context, query, customPrefs.defaultSearchEngine)
                 onDismiss()
@@ -333,6 +369,60 @@ internal fun AppSearchScreen(
                             }
                         }
                     }
+                    is SearchResult.SectionHeader -> {
+                        AppListSectionHeader(label = result.title)
+                    }
+                    is SearchResult.Contact -> {
+                        val phoneNum = result.contact.numbers.firstOrNull().orEmpty()
+                        SearchResultRow(
+                            label = result.contact.name,
+                            key = result.key,
+                            first = index == 0,
+                            onClick = { open(result, it) },
+                            onLongClick = null,
+                            trailing = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = {
+                                            val intent = Intent(Intent.ACTION_DIAL).apply {
+                                                if (phoneNum.isNotEmpty()) data = Uri.parse("tel:$phoneNum")
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_call),
+                                            contentDescription = "Call",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(4.dp))
+                                    IconButton(
+                                        onClick = {
+                                            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                                if (phoneNum.isNotEmpty()) data = Uri.parse("smsto:$phoneNum")
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_message),
+                                            contentDescription = "SMS",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        ) { iconModifier ->
+                            ContactAvatar(result.contact, contactsSource, iconModifier)
+                        }
+                    }
                     is SearchResult.WebSuggestion -> {
                         SearchResultRow(
                             label = result.suggestion,
@@ -365,7 +455,6 @@ internal fun AppSearchScreen(
                             when (result) {
                                 is SearchResult.App -> AppIcon(result.app, iconModifier, size = 40.dp, display = resultDisplay!!)
                                 is SearchResult.Shortcut -> AppIcon(result.app, iconModifier, size = 40.dp)
-                                is SearchResult.Contact -> ContactAvatar(result.contact, contactsSource, iconModifier)
                                 SearchResult.Internet -> Surface(modifier = iconModifier.size(40.dp), shape = CircleShape,
                                     color = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) {
                                     Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ms_travel_explore), null, Modifier.size(24.dp)) }
@@ -380,32 +469,37 @@ internal fun AppSearchScreen(
 
         // Search engine quick chips at bottom
         if (customPrefs.searchEngineChipsEnabled && query.isNotBlank()) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(bottom = bottomInset + 4.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
-                tonalElevation = 6.dp
-            ) {
-                Row(
+            val visibleEngines = remember(customPrefs.hiddenEngineChips) {
+                QuickSearchEngineRegistry.engines.filter { it.id !in customPrefs.hiddenEngineChips }
+            }
+            if (visibleEngines.isNotEmpty()) {
+                Surface(
                     modifier = Modifier
+                        .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(bottom = bottomInset + 4.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
+                    tonalElevation = 6.dp
                 ) {
-                    QuickSearchEngineRegistry.engines.forEach { engine ->
-                        SuggestionChip(
-                            onClick = {
-                                keyboard?.hide()
-                                QuickSearchEngineRegistry.launch(context, query, engine.id)
-                                onDismiss()
-                            },
-                            label = { Text(engine.name, fontSize = 12.sp) }
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        visibleEngines.forEach { engine ->
+                            SuggestionChip(
+                                onClick = {
+                                    keyboard?.hide()
+                                    QuickSearchEngineRegistry.launch(context, query, engine.id)
+                                    onDismiss()
+                                },
+                                label = { Text(engine.name, fontSize = 12.sp) }
+                            )
+                        }
                     }
                 }
             }
@@ -429,7 +523,7 @@ internal fun AppSearchScreen(
 
 @Composable
 private fun SearchResultRow(label: String, key: String, first: Boolean, hideIcon: Boolean = false, onClick: (Rect) -> Unit,
-    onLongClick: (() -> Unit)?, icon: @Composable (Modifier) -> Unit) {
+    onLongClick: (() -> Unit)?, trailing: (@Composable () -> Unit)? = null, icon: @Composable (Modifier) -> Unit) {
     val appearance = LocalLauncherAppearance.current
     var bounds by remember { mutableStateOf(Rect.Zero) }
     Row(Modifier.fillMaxWidth().heightIn(min = LauncherLayout.RowMinHeight).testTag(key)
@@ -445,6 +539,9 @@ private fun SearchResultRow(label: String, key: String, first: Boolean, hideIcon
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (first) FontWeight.Bold else FontWeight.Normal, shadow = appearance.textShadow),
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (first) Box(Modifier.padding(start = 8.dp).size(5.dp).background(appearance.text, CircleShape).testTag("search_first_result_dot"))
+        }
+        if (trailing != null) {
+            trailing()
         }
     }
 }

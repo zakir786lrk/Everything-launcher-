@@ -40,6 +40,11 @@ data class CustomActivityShortcut(
 class LauncherCustomPreferences(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("launcher_custom_prefs", Context.MODE_PRIVATE)
 
+    companion object {
+        @Volatile
+        private var cachedShortcuts: List<CustomActivityShortcut>? = null
+    }
+
     // Dock & App Stacks
     var fixedDockStackId: String?
         get() = prefs.getString("fixed_dock_stack_id", null)
@@ -66,16 +71,34 @@ class LauncherCustomPreferences(context: Context) {
         get() = prefs.getBoolean("search_engine_chips_enabled", true)
         set(value) = prefs.edit().putBoolean("search_engine_chips_enabled", value).apply()
 
+    var hiddenEngineChips: Set<String>
+        get() = prefs.getStringSet("hidden_engine_chips", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("hidden_engine_chips", value).apply()
+
     var searchCustomShortcutsEnabled: Boolean
         get() = prefs.getBoolean("search_custom_shortcuts_enabled", true)
         set(value) = prefs.edit().putBoolean("search_custom_shortcuts_enabled", value).apply()
+
+    // Search App Recents & Frequency toggles
+    var searchShowRecentlyInstalled: Boolean
+        get() = prefs.getBoolean("search_show_recently_installed", true)
+        set(value) = prefs.edit().putBoolean("search_show_recently_installed", value).apply()
+
+    var searchShowRecentlyOpened: Boolean
+        get() = prefs.getBoolean("search_show_recently_opened", true)
+        set(value) = prefs.edit().putBoolean("search_show_recently_opened", value).apply()
+
+    var searchShowFrequentlyOpened: Boolean
+        get() = prefs.getBoolean("search_show_frequently_opened", true)
+        set(value) = prefs.edit().putBoolean("search_show_frequently_opened", value).apply()
 
     var defaultSearchEngine: String
         get() = prefs.getString("default_search_engine", "google").orEmpty()
         set(value) = prefs.edit().putString("default_search_engine", value).apply()
 
-    // Custom Activity Shortcuts list
+    // Custom Activity Shortcuts list (with in-memory cache)
     fun getCustomShortcuts(): List<CustomActivityShortcut> {
+        cachedShortcuts?.let { return it }
         val raw = prefs.getString("custom_activity_shortcuts", null) ?: return emptyList()
         return try {
             val array = JSONArray(raw)
@@ -83,6 +106,7 @@ class LauncherCustomPreferences(context: Context) {
             for (i in 0 until array.length()) {
                 list.add(CustomActivityShortcut.fromJson(array.getJSONObject(i)))
             }
+            cachedShortcuts = list
             list
         } catch (e: Exception) {
             emptyList()
@@ -90,6 +114,7 @@ class LauncherCustomPreferences(context: Context) {
     }
 
     fun saveCustomShortcuts(shortcuts: List<CustomActivityShortcut>) {
+        cachedShortcuts = shortcuts
         val array = JSONArray()
         shortcuts.forEach { array.put(it.toJson()) }
         prefs.edit().putString("custom_activity_shortcuts", array.toString()).apply()

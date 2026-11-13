@@ -9,6 +9,7 @@ data class SearchEngineItem(
     val id: String,
     val name: String,
     val urlTemplate: String,
+    val appPackage: String? = null,
     val iconName: String = "search"
 ) {
     fun buildSearchUrl(query: String): String {
@@ -20,6 +21,10 @@ data class SearchEngineItem(
 object QuickSearchEngineRegistry {
     val engines = listOf(
         SearchEngineItem("google", "Google", "https://www.google.com/search?q={query}"),
+        SearchEngineItem("chatgpt", "ChatGPT", "https://chatgpt.com/?prompt={query}", "com.openai.chatgpt"),
+        SearchEngineItem("gemini", "Gemini", "https://gemini.google.com/app?text={query}", "com.google.android.apps.bard"),
+        SearchEngineItem("perplexity", "Perplexity", "https://www.perplexity.ai/search?q={query}", "ai.perplexity.app.android"),
+        SearchEngineItem("claude", "Claude", "https://claude.ai/new?q={query}", "com.anthropic.claude"),
         SearchEngineItem("duckduckgo", "DuckDuckGo", "https://duckduckgo.com/?q={query}"),
         SearchEngineItem("bing", "Bing", "https://www.bing.com/search?q={query}"),
         SearchEngineItem("youtube", "YouTube", "https://www.youtube.com/results?search_query={query}"),
@@ -38,7 +43,13 @@ object QuickSearchEngineRegistry {
     fun launch(context: Context, query: String, engineId: String = "google") {
         val engine = getEngine(engineId)
         val url = engine.buildSearchUrl(query)
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            // Fallback to browser
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(browserIntent)
+        }
     }
 }

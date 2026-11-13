@@ -91,6 +91,7 @@ import rikazzz.everythinglauncher.MainActivity
 import rikazzz.everythinglauncher.WidgetSetupActivity
 import rikazzz.everythinglauncher.data.LauncherApp
 import rikazzz.everythinglauncher.data.icons.GraceButtonIcon
+import rikazzz.everythinglauncher.data.LauncherCustomPreferences
 import rikazzz.everythinglauncher.data.LauncherFolder
 import rikazzz.everythinglauncher.data.LauncherShortcut
 import rikazzz.everythinglauncher.data.PrivateSpaceDisplay
@@ -171,6 +172,7 @@ fun LauncherRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
     val chooseAppStoreTitle = stringResource(R.string.choose_app_store)
     val launchView = LocalView.current
     val appTransitions = LocalAppTransitions.current
@@ -710,6 +712,7 @@ internal fun LauncherScreen(
     val appearance = rememberLauncherAppearance(uiState.textMode, uiState.themedIcons,
         uiState.settings.iconDesign?.design?.iconSize ?: 100, uiState.settings.iconDisplay)
     val context = LocalContext.current
+    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val calendarHomeVisible = !drawerOpen && overlay == null && !systemActionAccess &&
         homePager.settledPage == 0 && !homePager.isScrollInProgress
@@ -1230,6 +1233,7 @@ internal fun LauncherScreen(
                 onFolderDragEnd = endFolderDrag,
                 onMediaCommand = actions.controlMedia,
                 onDismissMedia = actions.dismissMedia,
+                onGraceButtonGesture = { gesture, origin -> performGestureAction(uiState.settings.graceButton.target(gesture), origin) },
                 modifier = Modifier.fillMaxSize(),
             )
            } else {
@@ -1340,7 +1344,11 @@ internal fun LauncherScreen(
             // Widget screen always hides the idle glyphs; its edge touch areas stay active.
             autoHide = if (drawerOpen) !alphabet.showInAppList else !showHomeAlphabet || homePager.currentPage == 1,
         )
-        if (!editingWidgetScreen && !editingHomeContent && ((!drawerOpen && editingHome) || uiState.settings.graceButton.isVisible(drawerOpen))) {
+        val hasFixedDock = customPrefs.fixedDockStackId != null && uiState.folders.any { it.id == customPrefs.fixedDockStackId && it.isAppStack }
+        val showFloatingGraceButton = if (!drawerOpen && hasFixedDock) false else {
+            !editingWidgetScreen && !editingHomeContent && ((!drawerOpen && editingHome) || uiState.settings.graceButton.isVisible(drawerOpen))
+        }
+        if (showFloatingGraceButton) {
             val buttonBounds = uiState.settings.graceButton.layout.bounds(maxWidth.value, maxHeight.value,
                 statusBarHeight.value, bottomInset.value)
             GraceButton(settings = uiState.settings.graceButton, editing = editingHome && !drawerOpen,

@@ -419,7 +419,7 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
                 Spacer(Modifier.height(ListItemDefaults.SegmentedGap))
                 SettingsToggleItem(
                     "Fix at Bottom as Dock",
-                    "Pin this stack permanently fixed at the bottom of the home screen",
+                    "Fix at bottom as home dock (up to 5 items). When enabled, the Grace button will move to the dock.",
                     isFixedDock, 3, 4, "stack_fix_dock"
                 ) { checked ->
                     isFixedDock = checked

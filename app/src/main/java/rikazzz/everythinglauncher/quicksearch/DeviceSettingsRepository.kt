@@ -134,16 +134,20 @@ class DeviceSettingsRepository(private val context: Context) {
         )
     )
 
+    private val availableSettings: List<DeviceSettingItem> by lazy {
+        allSettings.filter { canResolve(it) }
+    }
+
     fun searchSettings(query: String): List<DeviceSettingItem> {
         val q = query.trim().lowercase()
         if (q.isBlank()) return emptyList()
 
-        return allSettings.filter { setting ->
+        return availableSettings.filter { setting ->
             val matchesTitle = setting.title.lowercase().contains(q)
             val matchesCategory = setting.category.lowercase().contains(q)
             val matchesKeyword = setting.keywords.any { it.contains(q) || q.contains(it) }
 
-            (matchesTitle || matchesCategory || matchesKeyword) && canResolve(setting)
+            matchesTitle || matchesCategory || matchesKeyword
         }
     }
 

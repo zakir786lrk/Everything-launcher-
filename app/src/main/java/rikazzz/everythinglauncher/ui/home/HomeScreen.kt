@@ -98,6 +98,15 @@ import rikazzz.everythinglauncher.data.ScheduleEvent
 import rikazzz.everythinglauncher.data.ClockStyle
 import rikazzz.everythinglauncher.data.ClockColorPart
 import rikazzz.everythinglauncher.data.GraceButtonGesture
+import rikazzz.everythinglauncher.data.icons.GraceButtonIcon
+import rikazzz.everythinglauncher.ui.components.GraceButton
+import rikazzz.everythinglauncher.ui.components.GraceButtonOrigin
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import rikazzz.everythinglauncher.data.nextVisibleEvent
 import rikazzz.everythinglauncher.data.media.MediaCommand
 import rikazzz.everythinglauncher.data.IconDesign
@@ -156,6 +165,7 @@ fun HomeScreen(
     actions: LauncherActions = LauncherActions(),
     onWidgetEditingChange: (Boolean) -> Unit = {},
     onWeatherClick: () -> Unit = {},
+    onGraceButtonGesture: (GraceButtonGesture, GraceButtonOrigin) -> Unit = { _, _ -> },
 ) {
     val now by rememberHomeTime()
     val headphones by rememberHeadphonesConnected()
@@ -458,23 +468,23 @@ fun HomeScreen(
             modifier = Modifier.padding(start = uiState.settings.listAppearance.startPadding, end = uiState.settings.listAppearance.endPadding)
                 .offset(y = (if (baselineIndex >= 0) baselineTop else resolvedTop) - 20.dp))
 
-        // Fixed bottom dock as original AppStack
+        // Fixed bottom dock with apps + Grace button (up to 5 grids, center-aligned)
         if (!editingLayout && fixedDockStack != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(horizontal = LauncherLayout.ContentInset - AppStackInset.dp)
                     .padding(bottom = bottomInset + 8.dp)
-                    .zIndex(3f)
+                    .zIndex(3f),
+                contentAlignment = Alignment.Center
             ) {
-                AppStack(
+                FixedDock(
                     stack = fixedDockStack,
                     uiState = uiState,
-                    onLaunch = { item, bounds -> rowGestures.onLaunchAt?.invoke(item, bounds) ?: onLaunchApp(item) },
-                    onDetails = onAppDetails,
-                    onEdit = { onEditFolder(fixedDockStack) },
-                    modifier = Modifier.fillMaxWidth()
+                    onLaunchApp = { item, bounds -> rowGestures.onLaunchAt?.invoke(item, bounds) ?: onLaunchApp(item) },
+                    onAppDetails = onAppDetails,
+                    onEditFolder = { onEditFolder(fixedDockStack) },
+                    onGraceGesture = onGraceButtonGesture,
                 )
             }
         }
@@ -664,5 +674,138 @@ internal fun ScheduleLine(event: ScheduleEvent, now: Instant, color: Color = Loc
             color = color,
             maxLines = 1,
         )
+    }
+}
+
+private sealed class FixedDockSlot {
+    data class AppSlot(val app: LauncherApp) : FixedDockSlot()
+    object GraceSlot : FixedDockSlot()
+}
+
+@Composable
+private fun FixedDock(
+    stack: LauncherFolder,
+    uiState: LauncherUiState,
+    onLaunchApp: (LauncherApp, Rect) -> Unit,
+    onAppDetails: (LauncherApp) -> Unit,
+    onEditFolder: () -> Unit,
+    onGraceGesture: (GraceButtonGesture, GraceButtonOrigin) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
+    val showLabels = customPrefs.stackLabelsEnabled
+    val appearance = LocalLauncherAppearance.current
+    val displayedIconSize = 40.dp * (appearance.iconSize / 100f)
+    val symbolColor = appearance.text
+
+    // Up to 4 apps from the stack so total slots with Grace button <= 5
+    val rawApps = remember(stack, uiState.apps, uiState.folders) {
+        uiState.popupItems(uiState.folderItem(stack), emptyList()).mapNotNull { entry ->
+            if (entry.widget != null) null else uiState.findItem(entry.key)?.takeIf { it.folderId == null }
+        }.take(4)
+    }
+
+    // Build slot list with Grace button placed in the center
+    val slots = remember(rawApps) {
+        val list = mutableListOf<FixedDockSlot>()
+        val centerIndex = rawApps.size / 2
+        rawApps.forEachIndexed { index, app ->
+            if (index == centerIndex) {
+                list.add(FixedDockSlot.GraceSlot)
+            }
+            list.add(FixedDockSlot.AppSlot(app))
+        }
+        if (centerIndex >= rawApps.size) {
+            list.add(FixedDockSlot.GraceSlot)
+        }
+        list
+    }
+
+    Box(
+        modifier = modifier
+            .wrapContentWidth()
+            .clip(RoundedCornerShape(displayedIconSize / 2 + 12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.25f))
+            .combinedClickable(
+                onClick = {},
+                onLongClick = onEditFolder
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            slots.forEach { slot ->
+                when (slot) {
+                    is FixedDockSlot.AppSlot -> {
+                        val app = slot.app
+                        var bounds by remember { mutableStateOf(Rect.Zero) }
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .width(displayedIconSize + 16.dp)
+                                .padding(horizontal = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(displayedIconSize)
+                                    .combinedClickable(
+                                        onClick = { onLaunchApp(app, bounds) },
+                                        onLongClick = { onAppDetails(app) }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AppIcon(app, Modifier.onGloballyPositioned { bounds = it.boundsInWindow() }, size = 40.dp)
+                            }
+                            if (showLabels) {
+                                Text(
+                                    text = app.label,
+                                    color = symbolColor,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(top = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                    FixedDockSlot.GraceSlot -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .width(displayedIconSize + 16.dp)
+                                .padding(horizontal = 2.dp)
+                        ) {
+                            GraceButton(
+                                settings = uiState.settings.graceButton,
+                                editing = false,
+                                enabled = true,
+                                size = displayedIconSize,
+                                artwork = uiState.graceButtonApp?.icon.takeIf { GraceButtonIcon.key in uiState.itemIcons },
+                                design = GraceButtonIcon.choice(uiState.itemIcons[GraceButtonIcon.key]).design ?: GraceButtonIcon.defaults,
+                                onGesture = onGraceGesture,
+                                onFinishEditing = {},
+                                modifier = Modifier.size(displayedIconSize)
+                            )
+                            if (showLabels) {
+                                Text(
+                                    text = stringResource(R.string.settings_grace_button),
+                                    color = symbolColor,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(top = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

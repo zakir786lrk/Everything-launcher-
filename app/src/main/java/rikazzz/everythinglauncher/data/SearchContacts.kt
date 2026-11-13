@@ -78,7 +78,7 @@ internal class SearchContacts(context: Context) {
         resolver.query(Phone.CONTENT_URI, arrayOf(Phone.CONTACT_ID, Phone.NUMBER), null, null, null)?.use { cursor ->
             while (cursor.moveToNext()) {
                 currentCoroutineContext().ensureActive()
-                val number = cursor.getString(1)?.filter(Char::isDigit).orEmpty()
+                val number = cursor.getString(1)?.filter { it.isDigit() || it == '+' }.orEmpty()
                 if (number.isNotEmpty()) numbers.getOrPut(cursor.getLong(0)) { linkedSetOf() }.add(number)
             }
         }
