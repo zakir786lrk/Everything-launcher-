@@ -84,7 +84,7 @@ internal enum class SettingsPage {
     WidgetScreen, WidgetScreenEditor, Homepage, AppList, FeedScreen, StatusScreen, DigitalWellbeing, TabletsFoldables,
     Wallpaper, WallpaperDesigner,
     AppCategories, CategoryEditor, TasksOrg, TaskLists,
-    AiAgent,
+    AiAgent, Dock,
 }
 
 /** The window's existing system-bar owner follows the active settings surface. */
@@ -393,6 +393,7 @@ fun LauncherSettingsScreen(
                                 navController.currentBackStackEntry?.savedStateHandle?.set("icon_designer_app", app.key)
                             }
                         })
+                    SettingsPage.Dock -> DockSettingsScreen(uiState, actions, back, onManageStacks = { navigate(SettingsPage.AppStacks) })
                     SettingsPage.Changelog -> ChangelogSettings(back)
                     SettingsPage.Licenses -> LicenseSettings(back, navigate)
                     SettingsPage.AppLicense -> AppLicenseSettings(back)
@@ -416,6 +417,7 @@ private fun SettingsHome(
     val showDefaultHomeBanner = isDefaultHome == false
     val languageTag by rememberAppLanguage()
     val categories = listOf(
+        SettingsPage.Dock to LauncherSymbol.Apps,
         SettingsPage.AiAgent to LauncherSymbol.AutoAwesome,
         SettingsPage.Productivity to LauncherSymbol.Star,
         SettingsPage.Themes to LauncherSymbol.Palette,
@@ -433,6 +435,7 @@ private fun SettingsHome(
             categories.forEachIndexed { index, (page, symbol) ->
                 item(key = page.name) {
                     val title = when (page) {
+                        SettingsPage.Dock -> "Bottom Dock & App Stacks"
                         SettingsPage.AiAgent -> "AI Agent & Tasker"
                         SettingsPage.Productivity -> stringResource(R.string.settings_productivity)
                         SettingsPage.Themes -> stringResource(R.string.settings_themes)
@@ -441,6 +444,7 @@ private fun SettingsHome(
                         else -> stringResource(R.string.settings_about)
                     }
                     val summary = when (page) {
+                        SettingsPage.Dock -> "Configure bottom dock, stackable apps, labels & appearance"
                         SettingsPage.AiAgent -> "Gemini AI assistant, root controls, custom widgets & automations"
                         SettingsPage.Productivity -> stringResource(R.string.settings_productivity_summary)
                         SettingsPage.Themes -> stringResource(R.string.settings_themes_summary)

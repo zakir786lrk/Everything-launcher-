@@ -4,43 +4,100 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.DataOutputStream
+import java.io.File
 import java.io.InputStreamReader
 
 object RootExecutor {
     private var rootAvailable: Boolean? = null
+    var lastCheckMessage: String = "Not checked yet"
+        private set
 
-    suspend fun isRootAvailable(): Boolean = withContext(Dispatchers.IO) {
-        rootAvailable?.let { return@withContext it }
-        val available = try {
-            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-            output.contains("uid=0") || process.exitValue() == 0
-        } catch (e: Exception) {
-            false
+    suspend fun isRootAvailable(forceRecheck: Boolean = false): Boolean = withContext(Dispatchers.IO) {
+        if (!forceRecheck && rootAvailable != null) {
+            return@withContext rootAvailable!!
         }
-        rootAvailable = available
-        available
+
+        val suBinaryLocations = listOf(
+            "/system/bin/su", "/system/xbin/su", "/sbin/su",
+            "/data/adb/ksu/bin/su", "/data/adb/ap/bin/su", "/data/adb/magisk/su"
+        )
+        val binaryExists = suBinaryLocations.any { File(it).exists() }
+
+        var granted = false
+        var details = ""
+
+        // Attempt 1: direct `su -c id`
+        try {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val line = reader.readLine()
+            process.waitFor()
+            if (process.exitValue() == 0 || (line != null && line.contains("uid=0"))) {
+                granted = true
+                details = line ?: "Success"
+            }
+        } catch (e: Exception) {
+            details = e.localizedMessage ?: "su -c execution failed"
+        }
+
+        // Attempt 2: interactive `su`
+        if (!granted) {
+            try {
+                val p = Runtime.getRuntime().exec("su")
+                val os = DataOutputStream(p.outputStream)
+                os.writeBytes("id\nexit\n")
+                os.flush()
+                val r = BufferedReader(InputStreamReader(p.inputStream))
+                val l = r.readLine()
+                p.waitFor()
+                if (l != null && l.contains("uid=0")) {
+                    granted = true
+                    details = l
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+
+        rootAvailable = granted
+        lastCheckMessage = if (granted) {
+            "Root Active ($details)"
+        } else if (binaryExists) {
+            "Root binary found, but permission was not granted by Magisk/KernelSU yet. Please grant Everything Launcher in your Magisk/KernelSU/APatch app."
+        } else {
+            "Root not detected. If your device is rooted, grant Everything Launcher in Magisk/KernelSU or toggle 'Force Root Execution' below."
+        }
+
+        granted
     }
 
     suspend fun execute(command: String): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            val process = Runtime.getRuntime().exec("su")
-            val outputStream = DataOutputStream(process.outputStream)
-            outputStream.writeBytes("$command\nexit\n")
-            outputStream.flush()
+            var stdout = ""
+            var stderr = ""
+            var exitCode = -1
 
-            val stdoutReader = BufferedReader(InputStreamReader(process.inputStream))
-            val stderrReader = BufferedReader(InputStreamReader(process.errorStream))
+            // Try su -c first
+            try {
+                val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+                stdout = process.inputStream.bufferedReader().readText().trim()
+                stderr = process.errorStream.bufferedReader().readText().trim()
+                exitCode = process.waitFor()
+            } catch (e: Exception) {
+                // Fallback to piped su
+                val p = Runtime.getRuntime().exec("su")
+                val os = DataOutputStream(p.outputStream)
+                os.writeBytes("$command\nexit\n")
+                os.flush()
+                stdout = p.inputStream.bufferedReader().readText().trim()
+                stderr = p.errorStream.bufferedReader().readText().trim()
+                exitCode = p.waitFor()
+            }
 
-            val stdout = stdoutReader.readText()
-            val stderr = stderrReader.readText()
-            val exitCode = process.waitFor()
-
-            if (exitCode == 0) {
-                if (stdout.isBlank()) "Command executed successfully." else stdout.trim()
+            if (exitCode == 0 || stdout.isNotBlank()) {
+                if (stdout.isBlank()) "Command executed successfully." else stdout
             } else {
-                val errorMsg = if (stderr.isNotBlank()) stderr.trim() else "Exit code: $exitCode"
+                val errorMsg = if (stderr.isNotBlank()) stderr else "Exit code: $exitCode"
                 throw RuntimeException("Command failed: $errorMsg")
             }
         }

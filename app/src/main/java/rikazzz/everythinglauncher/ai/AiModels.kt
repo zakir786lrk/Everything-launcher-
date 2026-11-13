@@ -89,9 +89,41 @@ class AiPreferences(context: Context) {
         get() = prefs.getBoolean("show_dock", true)
         set(value) = prefs.edit().putBoolean("show_dock", value).apply()
 
+    var dockLabelsEnabled: Boolean
+        get() = prefs.getBoolean("dock_labels_enabled", true)
+        set(value) = prefs.edit().putBoolean("dock_labels_enabled", value).apply()
+
+    var dockBackgroundStyle: String
+        get() = prefs.getString("dock_bg_style", "glass").orEmpty()
+        set(value) = prefs.edit().putString("dock_bg_style", value).apply()
+
+    var dockCustomAppKeys: Set<String>
+        get() = prefs.getStringSet("dock_custom_app_keys", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("dock_custom_app_keys", value).apply()
+
     var stackLabelsEnabled: Boolean
         get() = prefs.getBoolean("stack_labels_enabled", true)
         set(value) = prefs.edit().putBoolean("stack_labels_enabled", value).apply()
+
+    var forceRootEnabled: Boolean
+        get() = prefs.getBoolean("force_root_enabled", false)
+        set(value) = prefs.edit().putBoolean("force_root_enabled", value).apply()
+
+    var aiProvider: String
+        get() = prefs.getString("ai_provider", "gemini").orEmpty()
+        set(value) = prefs.edit().putString("ai_provider", value).apply()
+
+    var customApiEndpoint: String
+        get() = prefs.getString("custom_api_endpoint", "https://openrouter.ai/api/v1").orEmpty()
+        set(value) = prefs.edit().putString("custom_api_endpoint", value).apply()
+
+    var customApiKey: String
+        get() = prefs.getString("custom_api_key", "").orEmpty()
+        set(value) = prefs.edit().putString("custom_api_key", value).apply()
+
+    var customModel: String
+        get() = prefs.getString("custom_model", "meta-llama/llama-3.2-3b-instruct:free").orEmpty()
+        set(value) = prefs.edit().putString("custom_model", value).apply()
 
     fun getSavedPrograms(): List<AiProgram> {
         val raw = prefs.getString("saved_ai_programs", null) ?: return defaultPrograms()

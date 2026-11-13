@@ -471,11 +471,13 @@ fun HomeScreen(
         // Fixed bottom dock for stackable apps and favorites
         val dockApps = remember(entries, uiState.allApps) { entries.mapNotNull { entry -> uiState.findItem(entry.key)?.takeIf { it.folderId == null } }.take(5) }
         val dockFolders = remember(uiState.folders) { uiState.folders.filter { it.isAppStack }.take(2) }
-        if (!editingLayout && (dockApps.isNotEmpty() || dockFolders.isNotEmpty())) {
+        if (!editingLayout && aiPrefs.showDock && (dockApps.isNotEmpty() || dockFolders.isNotEmpty())) {
             HomeDock(
                 apps = dockApps,
                 folders = dockFolders,
                 uiState = uiState,
+                dockLabelsEnabled = aiPrefs.dockLabelsEnabled,
+                backgroundStyle = aiPrefs.dockBackgroundStyle,
                 onLaunchApp = { app, bounds -> rowGestures.onLaunchAt?.invoke(app, bounds) ?: onLaunchApp(app) },
                 onAppDetails = onAppDetails,
                 onOpenFolder = onOpenFolder,

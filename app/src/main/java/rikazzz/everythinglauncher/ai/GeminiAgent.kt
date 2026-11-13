@@ -15,55 +15,182 @@ import java.util.UUID
 sealed class AiAgentResult {
     data class Success(val message: String, val actionsExecuted: List<String> = emptyList()) : AiAgentResult()
     data class Error(val error: String) : AiAgentResult()
-    data class MissingApiKey(val message: String = "Please set your Gemini API Key in Settings > AI Agent.") : AiAgentResult()
+    data class MissingApiKey(val message: String = "Please set your API Key in Settings > AI Agent & Tasker.") : AiAgentResult()
 }
 
 class GeminiAgent(private val context: Context) {
     private val prefs = AiPreferences(context)
 
     suspend fun processQuery(userPrompt: String): AiAgentResult = withContext(Dispatchers.IO) {
+        if (prefs.aiProvider == "custom_openai") {
+            return@withContext processWithOpenAiCompatible(userPrompt)
+        }
+
         val apiKey = prefs.geminiApiKey.trim()
         if (apiKey.isEmpty()) {
             return@withContext AiAgentResult.MissingApiKey()
         }
 
-        val model = prefs.geminiModel.ifBlank { "gemini-1.5-flash" }
-        val apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+        val preferredModel = prefs.geminiModel.ifBlank { "gemini-1.5-flash" }
+
+        // Candidates to attempt in case the chosen model gives a 404 (e.g. gemini-1.5-pro vs gemini-1.5-pro-latest)
+        val candidateModels = listOf(
+            preferredModel,
+            if (preferredModel.contains("pro") && !preferredModel.endsWith("-latest")) "$preferredModel-latest" else "gemini-1.5-pro-latest",
+            "gemini-1.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash-latest"
+        ).distinct()
+
+        val systemInstruction = """
+            You are Everything Launcher's AI Agent & Tasker Assistant.
+            You can execute Android system actions, run shell commands as root, generate custom widgets for the launcher, and save automation scripts.
+            Always be helpful, precise and concise.
+            
+            When the user asks to control the system (like turning wifi/bluetooth on/off, changing volume, running commands, creating widgets, or saving programs), invoke the corresponding tool.
+            ${prefs.customSystemPrompt}
+        """.trimIndent()
+
+        val requestJson = buildRequestJson(userPrompt, systemInstruction)
+
+        var lastError = ""
+        for (model in candidateModels) {
+            val apiVersions = listOf("v1beta", "v1")
+            for (apiVersion in apiVersions) {
+                val apiUrl = "https://generativelanguage.googleapis.com/$apiVersion/models/$model:generateContent?key=$apiKey"
+                try {
+                    val url = URL(apiUrl)
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.doOutput = true
+                    conn.connectTimeout = 12000
+                    conn.readTimeout = 25000
+
+                    OutputStreamWriter(conn.outputStream).use { it.write(requestJson.toString()) }
+
+                    val responseCode = conn.responseCode
+                    val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
+                    val responseText = BufferedReader(InputStreamReader(stream)).use { it.readText() }
+
+                    if (responseCode in 200..299) {
+                        // Successfully connected! Update to this working model if it changed
+                        if (prefs.geminiModel != model) {
+                            prefs.geminiModel = model
+                        }
+                        val responseJson = JSONObject(responseText)
+                        return@withContext handleGeminiResponse(responseJson)
+                    } else if (responseCode == 404) {
+                        lastError = "Model $model not found ($apiVersion), trying fallback..."
+                        continue // Try next candidate model
+                    } else {
+                        return@withContext AiAgentResult.Error("Gemini API Error ($responseCode): $responseText")
+                    }
+                } catch (e: Exception) {
+                    lastError = e.localizedMessage ?: "Connection error"
+                }
+            }
+        }
+
+        AiAgentResult.Error("Could not connect to Gemini models. Last error: $lastError")
+    }
+
+    private suspend fun processWithOpenAiCompatible(userPrompt: String): AiAgentResult = withContext(Dispatchers.IO) {
+        val apiKey = prefs.customApiKey.trim()
+        val endpoint = prefs.customApiEndpoint.trim().removeSuffix("/")
+        val model = prefs.customModel.trim().ifBlank { "meta-llama/llama-3.2-3b-instruct:free" }
+
+        val apiUrl = "$endpoint/chat/completions"
 
         try {
-            val systemInstruction = """
-                You are Everything Launcher's AI Agent & Tasker Assistant.
-                You can execute Android system actions, run shell commands as root, generate custom widgets for the launcher, and save automation scripts.
-                Always be helpful, precise and concise.
-                
-                When the user asks to control the system (like turning wifi/bluetooth on/off, changing volume, running commands, creating widgets, or saving programs), invoke the corresponding tool.
-                ${prefs.customSystemPrompt}
-            """.trimIndent()
-
-            val requestJson = buildRequestJson(userPrompt, systemInstruction)
+            val body = JSONObject().apply {
+                put("model", model)
+                val msgs = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "system")
+                        put("content", "You are Everything Launcher's AI Agent. Execute user tasks concisely. Commands like wifi on/off, volume, etc.")
+                    })
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", userPrompt)
+                    })
+                }
+                put("messages", msgs)
+            }
 
             val url = URL(apiUrl)
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json")
+            if (apiKey.isNotBlank()) {
+                conn.setRequestProperty("Authorization", "Bearer $apiKey")
+            }
             conn.doOutput = true
             conn.connectTimeout = 15000
-            conn.readTimeout = 25000
+            conn.readTimeout = 30000
 
-            OutputStreamWriter(conn.outputStream).use { it.write(requestJson.toString()) }
+            OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
 
             val responseCode = conn.responseCode
             val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
             val responseText = BufferedReader(InputStreamReader(stream)).use { it.readText() }
 
             if (responseCode !in 200..299) {
-                return@withContext AiAgentResult.Error("Gemini API Error ($responseCode): $responseText")
+                return@withContext AiAgentResult.Error("API Error ($responseCode): $responseText")
             }
 
-            val responseJson = JSONObject(responseText)
-            handleGeminiResponse(responseJson)
+            val json = JSONObject(responseText)
+            val choices = json.optJSONArray("choices")
+            if (choices != null && choices.length() > 0) {
+                val message = choices.getJSONObject(0).optJSONObject("message")
+                val content = message?.optString("content", "") ?: ""
+                AiAgentResult.Success(content)
+            } else {
+                AiAgentResult.Error("No choices in response")
+            }
         } catch (e: Exception) {
-            AiAgentResult.Error("Error: ${e.localizedMessage ?: e.message}")
+            AiAgentResult.Error("Custom AI Error: ${e.localizedMessage ?: e.message}")
+        }
+    }
+
+    suspend fun fetchAvailableModels(apiKey: String): Result<List<String>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val key = apiKey.trim()
+            if (key.isBlank()) return@runCatching emptyList()
+
+            val apiUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=$key"
+            val url = URL(apiUrl)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 10000
+            conn.readTimeout = 15000
+
+            val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
+            val text = BufferedReader(InputStreamReader(stream)).use { it.readText() }
+
+            if (conn.responseCode !in 200..299) {
+                throw RuntimeException("Error ${conn.responseCode}: $text")
+            }
+
+            val json = JSONObject(text)
+            val modelsArray = json.optJSONArray("models") ?: JSONArray()
+            val list = mutableListOf<String>()
+
+            for (i in 0 until modelsArray.length()) {
+                val m = modelsArray.getJSONObject(i)
+                val name = m.optString("name", "").removePrefix("models/")
+                val methods = m.optJSONArray("supportedGenerationMethods")
+                var canGenerate = false
+                if (methods != null) {
+                    for (j in 0 until methods.length()) {
+                        if (methods.getString(j) == "generateContent") canGenerate = true
+                    }
+                }
+                if (canGenerate && name.isNotBlank()) {
+                    list.add(name)
+                }
+            }
+            list.sorted()
         }
     }
 

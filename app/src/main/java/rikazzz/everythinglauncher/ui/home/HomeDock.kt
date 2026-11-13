@@ -37,20 +37,27 @@ fun HomeDock(
     onAppDetails: (LauncherApp) -> Unit,
     onOpenFolder: (LauncherFolder, Rect) -> Unit,
     onEditFolder: (LauncherFolder) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    dockLabelsEnabled: Boolean = true,
+    backgroundStyle: String = "glass"
 ) {
     if (apps.isEmpty() && folders.isEmpty()) return
 
     val appearance = LocalLauncherAppearance.current
     val iconSize = 42.dp * (appearance.iconSize / 100f)
+    val containerColor = when (backgroundStyle) {
+        "solid" -> MaterialTheme.colorScheme.surfaceContainerHigh
+        "transparent" -> androidx.compose.ui.graphics.Color.Transparent
+        else -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.35f)
+    }
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.35f),
-        tonalElevation = 4.dp
+        color = containerColor,
+        tonalElevation = if (backgroundStyle == "transparent") 0.dp else 4.dp
     ) {
         Row(
             modifier = Modifier
@@ -94,15 +101,17 @@ fun HomeDock(
                     ) {
                         AppIcon(app, Modifier.fillMaxSize(), size = iconSize)
                     }
-                    Text(
-                        text = app.label,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = appearance.text,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+                    if (dockLabelsEnabled) {
+                        Text(
+                            text = app.label,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = appearance.text,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
                 }
             }
         }

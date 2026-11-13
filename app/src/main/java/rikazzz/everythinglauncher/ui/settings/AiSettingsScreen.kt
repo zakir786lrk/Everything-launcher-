@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import rikazzz.everythinglauncher.R
 import rikazzz.everythinglauncher.ai.AiPreferences
 import rikazzz.everythinglauncher.ai.AiProgram
+import rikazzz.everythinglauncher.ai.GeminiAgent
 import rikazzz.everythinglauncher.ai.RootExecutor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,24 +33,42 @@ fun AiSettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { AiPreferences(context) }
+    val agent = remember { GeminiAgent(context) }
 
+    var provider by remember { mutableStateOf(prefs.aiProvider) }
     var apiKey by remember { mutableStateOf(prefs.geminiApiKey) }
     var showApiKey by remember { mutableStateOf(false) }
     var selectedModel by remember { mutableStateOf(prefs.geminiModel) }
+    var detectedModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isDetectingModels by remember { mutableStateOf(false) }
+
+    // Custom OpenAI / OpenRouter / Local LLM settings
+    var customEndpoint by remember { mutableStateOf(prefs.customApiEndpoint) }
+    var customKey by remember { mutableStateOf(prefs.customApiKey) }
+    var customModelName by remember { mutableStateOf(prefs.customModel) }
+
     var systemPrompt by remember { mutableStateOf(prefs.customSystemPrompt) }
-    var rootStatus by remember { mutableStateOf<String?>("Checking...") }
+    var rootStatus by remember { mutableStateOf("Checking...") }
+    var forceRoot by remember { mutableStateOf(prefs.forceRootEnabled) }
     var savedPrograms by remember { mutableStateOf(prefs.getSavedPrograms()) }
     var aiWidgets by remember { mutableStateOf(prefs.getWidgets()) }
 
+    fun checkRootNow() {
+        scope.launch {
+            rootStatus = "Testing root..."
+            val hasRoot = RootExecutor.isRootAvailable(forceRecheck = true)
+            rootStatus = if (hasRoot) "✅ Root access granted (su active)" else "⚠️ " + RootExecutor.lastCheckMessage
+        }
+    }
+
     LaunchedEffect(Unit) {
-        val hasRoot = RootExecutor.isRootAvailable()
-        rootStatus = if (hasRoot) "Root access granted (su available)" else "Root not detected"
+        checkRootNow()
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AI Agent & Automations") },
+                title = { Text("AI Agent & Tasker") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ms_arrow_back), contentDescription = "Back")
@@ -65,82 +84,213 @@ fun AiSettingsScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Provider Selection
             item {
                 Text(
-                    text = "Gemini AI Configuration",
+                    text = "AI Engine Provider",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-            }
-
-            // API Key
-            item {
-                OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = {
-                        apiKey = it
-                        prefs.geminiApiKey = it
-                    },
-                    label = { Text("Gemini API Key") },
-                    placeholder = { Text("AIzaSy...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { showApiKey = !showApiKey }) {
-                            Icon(
-                                painter = painterResource(if (showApiKey) R.drawable.ms_visibility else R.drawable.ms_visibility_off),
-                                contentDescription = "Toggle key visibility"
-                            )
-                        }
-                    },
-                    supportingText = {
-                        Text("Get a free API key at aistudio.google.com")
-                    }
-                )
-            }
-
-            // Model Selection
-            item {
-                Text("Gemini Model", style = MaterialTheme.typography.labelLarge)
-                val models = listOf("gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-1.5-pro")
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    models.forEach { model ->
-                        FilterChip(
-                            selected = selectedModel == model,
-                            onClick = {
-                                selectedModel = model
-                                prefs.geminiModel = model
-                            },
-                            label = { Text(model) }
-                        )
-                    }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = provider == "gemini",
+                        onClick = {
+                            provider = "gemini"
+                            prefs.aiProvider = "gemini"
+                        },
+                        label = { Text("Google Gemini") }
+                    )
+                    FilterChip(
+                        selected = provider == "custom_openai",
+                        onClick = {
+                            provider = "custom_openai"
+                            prefs.aiProvider = "custom_openai"
+                        },
+                        label = { Text("OpenRouter / DeepSeek / Local") }
+                    )
                 }
             }
 
-            // Root Status
+            if (provider == "gemini") {
+                // Gemini API Key
+                item {
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = {
+                            apiKey = it
+                            prefs.geminiApiKey = it
+                        },
+                        label = { Text("Gemini API Key") },
+                        placeholder = { Text("AIzaSy...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { showApiKey = !showApiKey }) {
+                                Icon(
+                                    painter = painterResource(if (showApiKey) R.drawable.ms_visibility else R.drawable.ms_visibility_off),
+                                    contentDescription = "Toggle visibility"
+                                )
+                            }
+                        },
+                        supportingText = {
+                            Text("Free key from aistudio.google.com")
+                        }
+                    )
+                }
+
+                // Model Selection
+                item {
+                    Text("Gemini Model", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(6.dp))
+                    val defaultModels = listOf("gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest")
+                    val allModels = (defaultModels + detectedModels).distinct()
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            allModels.take(2).forEach { model ->
+                                FilterChip(
+                                    selected = selectedModel == model,
+                                    onClick = {
+                                        selectedModel = model
+                                        prefs.geminiModel = model
+                                    },
+                                    label = { Text(model) }
+                                )
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            allModels.drop(2).take(3).forEach { model ->
+                                FilterChip(
+                                    selected = selectedModel == model,
+                                    onClick = {
+                                        selectedModel = model
+                                        prefs.geminiModel = model
+                                    },
+                                    label = { Text(model) }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                isDetectingModels = true
+                                val res = agent.fetchAvailableModels(apiKey)
+                                isDetectingModels = false
+                                if (res.isSuccess) {
+                                    val models = res.getOrDefault(emptyList())
+                                    if (models.isNotEmpty()) {
+                                        detectedModels = models
+                                        Toast.makeText(context, "Found ${models.size} models from Google", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "No generateContent models returned", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Failed: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        enabled = apiKey.isNotBlank() && !isDetectingModels
+                    ) {
+                        if (isDetectingModels) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text("Detect Available Models from Google API")
+                    }
+                }
+            } else {
+                // Custom Provider (OpenRouter, DeepSeek, Local Ollama)
+                item {
+                    Text(
+                        text = "OpenAI-Compatible / Lightweight LLM",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customEndpoint,
+                        onValueChange = {
+                            customEndpoint = it
+                            prefs.customApiEndpoint = it
+                        },
+                        label = { Text("Base URL Endpoint") },
+                        placeholder = { Text("https://openrouter.ai/api/v1") },
+                        modifier = Modifier.fillMaxWidth(),
+                        supportingText = { Text("e.g. https://api.deepseek.com/v1 or http://localhost:11434/v1 for local Ollama") }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customKey,
+                        onValueChange = {
+                            customKey = it
+                            prefs.customApiKey = it
+                        },
+                        label = { Text("API Key (Optional for local)") },
+                        placeholder = { Text("sk-or-...") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customModelName,
+                        onValueChange = {
+                            customModelName = it
+                            prefs.customModel = it
+                        },
+                        label = { Text("Model Name") },
+                        placeholder = { Text("meta-llama/llama-3.2-3b-instruct:free or deepseek-chat") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Root Status & Management
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Row(
-                        Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Root Access Status", fontWeight = FontWeight.Bold)
-                            Text(rootStatus ?: "Unknown", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Button(onClick = {
-                            scope.launch {
-                                rootStatus = "Checking..."
-                                val hasRoot = RootExecutor.isRootAvailable()
-                                rootStatus = if (hasRoot) "Root access granted (su available)" else "Root not detected"
+                    Column(Modifier.padding(16.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Root Status & Tasker", fontWeight = FontWeight.Bold)
+                                Text(rootStatus, style = MaterialTheme.typography.bodySmall)
                             }
-                        }) {
-                            Text("Recheck")
+                            Button(onClick = { checkRootNow() }) {
+                                Text("Recheck")
+                            }
+                        }
+
+                        HorizontalDivider(Modifier.padding(vertical = 12.dp))
+
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Force Root Execution", fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Bypasses probe check and dispatches all system commands directly via `su`",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = forceRoot,
+                                onCheckedChange = {
+                                    forceRoot = it
+                                    prefs.forceRootEnabled = it
+                                }
+                            )
                         }
                     }
                 }
@@ -154,7 +304,7 @@ fun AiSettingsScreen(
                         systemPrompt = it
                         prefs.customSystemPrompt = it
                     },
-                    label = { Text("Custom AI Instructions (Optional)") },
+                    label = { Text("Custom AI System Instructions (Optional)") },
                     placeholder = { Text("e.g. Always respond in concise bullet points...") },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 3
@@ -173,7 +323,7 @@ fun AiSettingsScreen(
 
             if (savedPrograms.isEmpty()) {
                 item {
-                    Text("No saved automations. Ask the AI to save one (e.g. 'Save a movie mode automation').", style = MaterialTheme.typography.bodySmall)
+                    Text("No saved automations. Ask the AI in search or chat to save one.", style = MaterialTheme.typography.bodySmall)
                 }
             }
 

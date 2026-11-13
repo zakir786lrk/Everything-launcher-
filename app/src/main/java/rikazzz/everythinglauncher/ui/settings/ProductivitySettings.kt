@@ -164,7 +164,11 @@ internal fun ProductivitySettings(
                 ) { navigate(SettingsPage.Folders) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.app_stacks_title), null, 3, 6, "settings_app_stacks",
+                SettingsActionItem("Bottom Dock & Stacks", "Configure bottom dock, app names & styling", 3, 7, "settings_dock",
+                    leading = { LauncherIcon(LauncherSymbol.Apps) }) { navigate(SettingsPage.Dock) }
+            }
+            item {
+                SettingsActionItem(stringResource(R.string.app_stacks_title), null, 4, 7, "settings_app_stacks",
                     leading = { LauncherIcon(LauncherSymbol.Steppers) }) { navigate(SettingsPage.AppStacks) }
             }
             item {
