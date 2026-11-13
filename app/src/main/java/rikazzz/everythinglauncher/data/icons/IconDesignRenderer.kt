@@ -100,14 +100,17 @@ internal fun renderDesignedIcon(layers: IconLayers, design: IconDesign, dynamicB
 }
 
 private fun hasOpaqueCorners(bitmap: Bitmap): Boolean {
+    if (bitmap.isRecycled) return false
     val w = bitmap.width
     val h = bitmap.height
     if (w < 8 || h < 8) return false
-    val c1 = (bitmap.getPixel(w / 8, h / 8) ushr 24)
-    val c2 = (bitmap.getPixel(7 * w / 8, h / 8) ushr 24)
-    val c3 = (bitmap.getPixel(w / 8, 7 * h / 8) ushr 24)
-    val c4 = (bitmap.getPixel(7 * w / 8, 7 * h / 8) ushr 24)
-    return c1 > 200 && c2 > 200 && c3 > 200 && c4 > 200
+    return runCatching {
+        val c1 = (bitmap.getPixel(w / 8, h / 8) ushr 24)
+        val c2 = (bitmap.getPixel(7 * w / 8, h / 8) ushr 24)
+        val c3 = (bitmap.getPixel(w / 8, 7 * h / 8) ushr 24)
+        val c4 = (bitmap.getPixel(7 * w / 8, 7 * h / 8) ushr 24)
+        c1 > 200 && c2 > 200 && c3 > 200 && c4 > 200
+    }.getOrDefault(false)
 }
 
 /** Draw the same layers directly for previews; moving a symbol must not allocate a bitmap every frame. */

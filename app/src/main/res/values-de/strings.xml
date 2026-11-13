@@ -448,8 +448,8 @@
     <string name="media_fallback_app">Zu öffnende App wenn keine Medien verfügbar sind</string>
     <string name="media_idle_title">Nichts wird abgespielt</string>
     <string name="media_idle_summary">Tippe Play zum Fortsetzen</string>
-    <string name="settings_grace_button">Grace Schaltfläche</string>
-    <string name="grace_button_enable">Grace Schaltfläche aktivieren</string>
+    <string name="settings_grace_button">Everything Schaltfläche</string>
+    <string name="grace_button_enable">Everything Schaltfläche aktivieren</string>
     <string name="grace_button_tap">Einfaches Antippen</string>
     <string name="grace_button_long_press">Langes Antippen</string>
     <string name="grace_button_open_app">App öffnen</string>

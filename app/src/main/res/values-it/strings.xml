@@ -10,8 +10,8 @@
     <string name="media_idle_title">Non c\'è niente in riproduzione</string>
     <string name="media_idle_summary">Tocca play per riprendere</string>
     <string name="settings_none">Nessuno</string>
-    <string name="settings_grace_button">Pulsante Grace</string>
-    <string name="grace_button_enable">Abilita il pulsante Grace</string>
+    <string name="settings_grace_button">Pulsante Everything</string>
+    <string name="grace_button_enable">Abilita il pulsante Everything</string>
     <string name="grace_button_tap">Tocco singolo</string>
     <string name="grace_button_long_press">Tocco prolungato</string>
     <string name="grace_button_open_app">Apri app</string>

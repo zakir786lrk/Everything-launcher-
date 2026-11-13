@@ -48,8 +48,12 @@ object QuickSearchEngineRegistry {
             context.startActivity(intent)
         } catch (e: Exception) {
             // Fallback to browser
-            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(browserIntent)
+            try {
+                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(browserIntent)
+            } catch (ignored: Exception) {
+                android.widget.Toast.makeText(context, rikazzz.everythinglauncher.R.string.app_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

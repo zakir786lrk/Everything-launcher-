@@ -85,12 +85,14 @@ import kotlinx.coroutines.launch
 private sealed interface SearchResult {
     val key: String
     data class SectionHeader(val title: String) : SearchResult { override val key = "section:" + title }
-    data class App(val app: LauncherApp) : SearchResult { override val key = "app:" + app.key }
+    data class App(val app: LauncherApp, val section: String = "") : SearchResult {
+        override val key = if (section.isEmpty()) "app:" + app.key else "app:$section:" + app.key
+    }
     data class Shortcut(val app: LauncherApp) : SearchResult { override val key = "shortcut:" + app.key }
     data class CustomShortcut(val shortcut: CustomActivityShortcut) : SearchResult { override val key = "custom_shortcut:" + shortcut.id }
     data class DeviceSetting(val item: DeviceSettingItem) : SearchResult { override val key = "setting:" + item.id }
     data class Calculator(val expression: String, val result: String) : SearchResult { override val key = "calc:" + expression }
-    data class WebSuggestion(val suggestion: String) : SearchResult { override val key = "web_sug:" + suggestion }
+    data class WebSuggestion(val suggestion: String, val index: Int = 0) : SearchResult { override val key = "web_sug:${index}_$suggestion" }
     data class Contact(val contact: SearchContact) : SearchResult { override val key = "contact:" + contact.id }
     data object Internet : SearchResult { override val key = "search_internet_result" }
 }
@@ -151,9 +153,13 @@ internal fun AppSearchScreen(
             try {
                 context.startActivity(intent)
             } catch (e: Exception) {
-                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$pendingCallNumber")).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                })
+                try {
+                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$pendingCallNumber")).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    })
+                } catch (ignored: Exception) {
+                    Toast.makeText(context, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
+                }
             }
             pendingCallNumber = ""
         }
@@ -162,7 +168,7 @@ internal fun AppSearchScreen(
     var webSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(query, customPrefs.searchWebSuggestionsEnabled) {
         if (customPrefs.searchWebSuggestionsEnabled && query.length >= 2) {
-            webSuggestions = WebSuggestionsUtils.getSuggestions(query)
+            webSuggestions = WebSuggestionsUtils.getSuggestions(query).distinct()
         } else {
             webSuggestions = emptyList()
         }
@@ -182,32 +188,42 @@ internal fun AppSearchScreen(
         if (query.isEmpty()) {
             if (settings.suggestions) {
                 val byKey = apps.associateBy { it.key }
+                val shownKeys = mutableSetOf<String>()
                 buildList {
                     // 1. Recently opened apps
                     if (customPrefs.searchShowRecentlyOpened) {
                         val recent = settings.recentAppKeys.mapNotNull(byKey::get).distinctBy { it.key }.take(5)
                         if (recent.isNotEmpty()) {
                             add(SearchResult.SectionHeader("Recently Opened"))
-                            recent.forEach { add(SearchResult.App(it)) }
+                            recent.forEach {
+                                shownKeys.add(it.key)
+                                add(SearchResult.App(it, "recent"))
+                            }
                         }
                     }
-                    // 2. Frequently opened apps
+                    // 2. Frequently opened apps (exclude already shown in Recently Opened)
                     if (customPrefs.searchShowFrequentlyOpened) {
-                        val freq = apps.filter { it.user == null && (uiState.usage.openCounts[it.packageName] ?: 0) > 0 }
+                        val freq = apps.filter { it.user == null && (uiState.usage.openCounts[it.packageName] ?: 0) > 0 && it.key !in shownKeys }
                             .sortedWith(compareByDescending<LauncherApp> { uiState.usage.openCounts[it.packageName] ?: 0 }.then(LauncherAppOrder))
                             .distinctBy { it.packageName }
                             .take(5)
                         if (freq.isNotEmpty()) {
                             add(SearchResult.SectionHeader("Frequently Opened"))
-                            freq.forEach { add(SearchResult.App(it)) }
+                            freq.forEach {
+                                shownKeys.add(it.key)
+                                add(SearchResult.App(it, "freq"))
+                            }
                         }
                     }
-                    // 3. Recently installed apps
+                    // 3. Recently installed apps (exclude already shown)
                     if (customPrefs.searchShowRecentlyInstalled) {
-                        val installed = uiState.recentlyInstalledApps.take(5)
+                        val installed = uiState.recentlyInstalledApps.filter { it.key !in shownKeys }.distinctBy { it.key }.take(5)
                         if (installed.isNotEmpty()) {
                             add(SearchResult.SectionHeader("Recently Installed"))
-                            installed.forEach { add(SearchResult.App(it)) }
+                            installed.forEach {
+                                shownKeys.add(it.key)
+                                add(SearchResult.App(it, "installed"))
+                            }
                         }
                     }
                 }
@@ -222,14 +238,14 @@ internal fun AppSearchScreen(
 
             // 2. Matching device settings
             val matchedSettings = if (customPrefs.searchDeviceSettingsEnabled) {
-                deviceSettingsRepo.searchSettings(query).take(3).map { SearchResult.DeviceSetting(it) }
+                deviceSettingsRepo.searchSettings(query).distinctBy { it.id }.take(3).map { SearchResult.DeviceSetting(it) }
             } else emptyList()
 
             // 3. Matching custom activity shortcuts
             val matchedCustomShortcuts = if (customPrefs.searchCustomShortcutsEnabled) {
                 customShortcuts.filter {
                     it.showInSearch && (it.name.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true))
-                }.take(3).map { SearchResult.CustomShortcut(it) }
+                }.distinctBy { it.id }.take(3).map { SearchResult.CustomShortcut(it) }
             } else emptyList()
 
             // 4. Apps and app shortcuts
@@ -237,16 +253,19 @@ internal fun AppSearchScreen(
                 val score = names?.get(app.key)?.score(term) ?: return@mapNotNull null
                 score to app
             }.sortedWith(compareBy<Pair<Int, LauncherApp>> { it.first }.thenComparator { a, b -> LauncherAppOrder.compare(a.second, b.second) })
+                .distinctBy { it.second.key }
                 .take(30)
 
             val matchedShortcuts = uiState.shortcutApps.filter {
                 it.label.contains(query, ignoreCase = true)
-            }.take(3).map { SearchResult.Shortcut(it) }
+            }.distinctBy { it.key }.take(3).map { SearchResult.Shortcut(it) }
 
             // 5. Contacts
             val matchedContacts = if (settings.contacts && hasContactsAccess) contacts.mapNotNull { contact ->
                 contact.score(term)?.let { it to contact }
-            }.sortedBy { it.first }.take(10) else emptyList()
+            }.sortedBy { it.first }.distinctBy { it.second.id }.take(10) else emptyList()
+
+            val distinctWebSuggestions = webSuggestions.distinct().take(5).mapIndexed { idx, sug -> SearchResult.WebSuggestion(sug, idx) }
 
             buildList {
                 if (calcResult != null) {
@@ -257,7 +276,7 @@ internal fun AppSearchScreen(
                 matchedApps.forEach { add(SearchResult.App(it.second)) }
                 matchedShortcuts.forEach { add(it) }
                 matchedContacts.forEach { add(SearchResult.Contact(it.second)) }
-                webSuggestions.forEach { add(SearchResult.WebSuggestion(it)) }
+                distinctWebSuggestions.forEach { add(it) }
                 if (settings.internet) add(SearchResult.Internet)
             }
         }
@@ -281,12 +300,18 @@ internal fun AppSearchScreen(
             }
             is SearchResult.DeviceSetting -> {
                 onDismiss()
-                context.startActivity(result.item.toIntent())
+                try {
+                    context.startActivity(result.item.toIntent())
+                } catch (e: Exception) {
+                    Toast.makeText(context, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
+                }
             }
             is SearchResult.Calculator -> {
-                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                cm.setPrimaryClip(ClipData.newPlainText("Calculator Result", result.result))
-                Toast.makeText(context, "Copied result: ${result.result}", Toast.LENGTH_SHORT).show()
+                runCatching {
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("Calculator Result", result.result))
+                    Toast.makeText(context, "Copied result: ${result.result}", Toast.LENGTH_SHORT).show()
+                }
             }
             is SearchResult.WebSuggestion -> {
                 QuickSearchEngineRegistry.launch(context, result.suggestion, customPrefs.defaultSearchEngine)
@@ -341,7 +366,7 @@ internal fun AppSearchScreen(
                 Text(stringResource(R.string.search_no_results), Modifier.padding(20.dp), color = appearance.text)
             }
 
-            itemsIndexed(results, key = { _, result -> result.key }) { index, result ->
+            itemsIndexed(results, key = { index, result -> "${result.key}_$index" }) { index, result ->
                 when (result) {
                     is SearchResult.Calculator -> {
                         Card(
@@ -419,9 +444,13 @@ internal fun AppSearchScreen(
                                                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                                         })
                                                     } catch (e: Exception) {
-                                                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNum")).apply {
-                                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                        })
+                                                        try {
+                                                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNum")).apply {
+                                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                            })
+                                                        } catch (ignored: Exception) {
+                                                            Toast.makeText(context, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
+                                                        }
                                                     }
                                                 } else {
                                                     pendingCallNumber = phoneNum
@@ -441,11 +470,15 @@ internal fun AppSearchScreen(
                                     Spacer(Modifier.width(4.dp))
                                     IconButton(
                                         onClick = {
-                                            val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                                if (phoneNum.isNotEmpty()) data = Uri.parse("smsto:$phoneNum")
-                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            try {
+                                                val intent = Intent(Intent.ACTION_SENDTO).apply {
+                                                    if (phoneNum.isNotEmpty()) data = Uri.parse("smsto:$phoneNum")
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
                                             }
-                                            context.startActivity(intent)
                                         },
                                         modifier = Modifier.size(36.dp)
                                     ) {

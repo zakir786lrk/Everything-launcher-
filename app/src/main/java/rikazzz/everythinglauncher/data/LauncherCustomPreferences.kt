@@ -63,6 +63,11 @@ class LauncherCustomPreferences(context: Context) {
         get() = prefs.getBoolean("dim_home_screen_wallpaper", true)
         set(value) = prefs.edit().putBoolean("dim_home_screen_wallpaper", value).apply()
 
+    // Home Screen Favorites Scrolling
+    var stopFavoritesScrollingWhenFitting: Boolean
+        get() = prefs.getBoolean("stop_favorites_scrolling_when_fitting", false)
+        set(value) = prefs.edit().putBoolean("stop_favorites_scrolling_when_fitting", value).apply()
+
     // Icon Theming Fallback
     var useLetterFallbackForUnthemed: Boolean
         get() = prefs.getBoolean("use_letter_fallback_unthemed", false)

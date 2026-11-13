@@ -10,7 +10,7 @@
     <string name="media_fallback_app">Aplicativo para abrir caso não houver mídia disponível</string>
     <string name="media_idle_summary">Aperte iniciar para continuar</string>
     <string name="settings_none">Nada</string>
-    <string name="settings_grace_button">Botão Grace</string>
+    <string name="settings_grace_button">Botão Everything</string>
     <string name="grace_button_position_size">Posição e tamanho</string>
     <string name="grace_button_alignment">Alinhamento</string>
     <string name="grace_button_show_on">Mostrar em</string>
@@ -22,7 +22,7 @@
     <string name="grace_button_bottom_distance">Distância inferior</string>
     <string name="grace_button_size">Tamanho do botão</string>
     <string name="grace_button_position_hint">Arraste o botão para modificar a posição</string>
-    <string name="grace_button_enable">Habilitar botão Grace</string>
+    <string name="grace_button_enable">Habilitar botão Everything</string>
     <string name="grace_button_tap">Toque simples</string>
     <string name="grace_button_long_press">Toque longo</string>
     <string name="grace_button_open_app">Abrir aplicativo</string>

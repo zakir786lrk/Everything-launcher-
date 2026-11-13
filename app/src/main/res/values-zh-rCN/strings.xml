@@ -167,9 +167,9 @@
     <string name="media_progress">进度条</string>
     <string name="media_unsaved_message">音乐组件的更改尚未保存。</string>
     <string name="settings_none">无</string>
-    <string name="settings_grace_button">Grace 按钮</string>
+    <string name="settings_grace_button">Everything 按钮</string>
     <string name="settings_grace_button_summary">悬浮操作按钮</string>
-    <string name="grace_button_enable">启用 Grace 按钮</string>
+    <string name="grace_button_enable">启用 Everything 按钮</string>
     <string name="grace_button_tap">单击动作</string>
     <string name="grace_button_long_press">长按动作</string>
     <string name="grace_button_open_app">打开应用</string>

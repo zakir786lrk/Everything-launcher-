@@ -35,7 +35,9 @@ internal fun LauncherSearchBar(
     val focusRequester = remember { FocusRequester() }
     val colors = SearchBarDefaults.colors()
     LaunchedEffect(autoFocus, enabled) {
-        if (autoFocus && enabled) focusRequester.requestFocus()
+        if (autoFocus && enabled) {
+            runCatching { focusRequester.requestFocus() }
+        }
     }
     Surface(
         modifier = modifier.fillMaxWidth(),

@@ -75,6 +75,9 @@ internal fun ProductivitySettings(
     navigate: (SettingsPage) -> Unit,
 ) {
     val settings = uiState.settings
+    val context = LocalContext.current
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    var stopFavoritesScroll by remember { mutableStateOf(customPrefs.stopFavoritesScrollingWhenFitting) }
     SettingsScaffold(stringResource(R.string.settings_productivity), "settings_productivity", onBack) { padding ->
         SettingsList(padding) {
             item { SettingsHeading(stringResource(R.string.settings_instant_access)) }
@@ -126,23 +129,34 @@ internal fun ProductivitySettings(
             }
             item { SettingsHeading(stringResource(R.string.settings_screens)) }
             item {
-                SettingsActionItem(stringResource(R.string.settings_home_screen), null, 0, 5, "settings_edit_homepage",
+                SettingsActionItem(stringResource(R.string.settings_home_screen), null, 0, 6, "settings_edit_homepage",
                     leading = { LauncherIcon(LauncherSymbol.Home) }) { navigate(SettingsPage.Homepage) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.settings_folder_app_list), null, 1, 5, "settings_app_list",
+                SettingsToggleItem(
+                    "Stop Scrolling When Favorites Fit",
+                    "Stop scrolling home screen favorite apps if they are a fixed number and fit without scrolling",
+                    stopFavoritesScroll, 1, 6, "stop_favorites_scrolling",
+                    leading = { LauncherIcon(LauncherSymbol.Move) }
+                ) { checked ->
+                    stopFavoritesScroll = checked
+                    customPrefs.stopFavoritesScrollingWhenFitting = checked
+                }
+            }
+            item {
+                SettingsActionItem(stringResource(R.string.settings_folder_app_list), null, 2, 6, "settings_app_list",
                     leading = { LauncherIcon(LauncherSymbol.Apps) }) { navigate(SettingsPage.AppList) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.widget_screen_title), null, 2, 5, "settings_widget_screen",
+                SettingsActionItem(stringResource(R.string.widget_screen_title), null, 3, 6, "settings_widget_screen",
                     leading = { LauncherIcon(LauncherSymbol.Widgets) }) { navigate(SettingsPage.WidgetScreen) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.settings_feed_screen), null, 3, 5, "settings_feed_screen",
+                SettingsActionItem(stringResource(R.string.settings_feed_screen), null, 4, 6, "settings_feed_screen",
                     leading = { LauncherIcon(LauncherSymbol.Category) }) { navigate(SettingsPage.FeedScreen) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.settings_status_screen), null, 4, 5, "settings_status_screen",
+                SettingsActionItem(stringResource(R.string.settings_status_screen), null, 5, 6, "settings_status_screen",
                     leading = { LauncherIcon(LauncherSymbol.Notifications) }) { navigate(SettingsPage.StatusScreen) }
             }
             item { SettingsHeading(stringResource(R.string.settings_app_organization)) }
@@ -420,7 +434,7 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
                 Spacer(Modifier.height(ListItemDefaults.SegmentedGap))
                 SettingsToggleItem(
                     "Fix at Bottom as Dock",
-                    "Fix at bottom as home dock (up to 5 items). When enabled, the Grace button will move to the dock.",
+                    "Fix at bottom as home dock (up to 5 items). When enabled, the Everything button will move to the dock.",
                     isFixedDock, 3, if (isFixedDock) 5 else 4, "stack_fix_dock"
                 ) { checked ->
                     isFixedDock = checked

@@ -116,7 +116,7 @@
     <string name="media_progress">Прогресс</string>
     <string name="media_unsaved_message">Ваши изменения в медиаплеере не были сохранены.</string>
     <string name="settings_none">Нет</string>
-    <string name="settings_grace_button">Кнопка Grace</string>
+    <string name="settings_grace_button">Кнопка Everything</string>
     <string name="settings_grace_button_summary">Кнопка быстрых действий</string>
     <string name="grace_button_position_size">Положение и размер</string>
     <string name="grace_button_alignment">Выравнивание</string>
@@ -129,7 +129,7 @@
     <string name="grace_button_bottom_distance">Расстояние от нижнего края</string>
     <string name="grace_button_size">Размер кнопки</string>
     <string name="grace_button_position_hint">Перетащите кнопку, чтобы изменить её положение</string>
-    <string name="grace_button_enable">Включить кнопку Grace</string>
+    <string name="grace_button_enable">Включить кнопку Everything</string>
     <string name="grace_button_tap">Одно нажатие</string>
     <string name="grace_button_long_press">Долгое нажатие</string>
     <string name="grace_button_open_app">Открыть приложение</string>

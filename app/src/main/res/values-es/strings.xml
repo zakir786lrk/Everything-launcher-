@@ -10,8 +10,8 @@
     <string name="media_idle_title">No se está reproduciendo nada</string>
     <string name="media_idle_summary">Pulsa reproducir para reanudar</string>
     <string name="settings_none">Ninguno</string>
-    <string name="settings_grace_button">Botón Grace</string>
-    <string name="grace_button_enable">Habilitar botón Grace</string>
+    <string name="settings_grace_button">Botón Everything</string>
+    <string name="grace_button_enable">Habilitar botón Everything</string>
     <string name="grace_button_tap">Un toque</string>
     <string name="grace_button_long_press">Pulsación larga</string>
     <string name="grace_button_open_app">Abrir aplicación</string>

@@ -54,36 +54,45 @@ internal class SearchContacts(context: Context) {
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) { trySend(Unit) }
         }
-        resolver.registerContentObserver(ContactsContract.AUTHORITY_URI, true, observer)
+        val registered = runCatching {
+            resolver.registerContentObserver(ContactsContract.AUTHORITY_URI, true, observer)
+            true
+        }.getOrDefault(false)
         trySend(Unit)
-        awaitClose { resolver.unregisterContentObserver(observer) }
+        awaitClose {
+            if (registered) {
+                runCatching { resolver.unregisterContentObserver(observer) }
+            }
+        }
     }.conflate().mapLatest { load() }.catch { emit(emptyList()) }
 
     private suspend fun load(): List<SearchContact> = withContext(Dispatchers.IO) {
         if (!hasAccess()) return@withContext emptyList()
-        val contacts = linkedMapOf<Long, SearchContact>()
-        resolver.query(Contacts.CONTENT_URI, arrayOf(Contacts._ID, Contacts.LOOKUP_KEY,
-            Contacts.DISPLAY_NAME_PRIMARY, Contacts.PHOTO_THUMBNAIL_URI), null, null, null)?.use { cursor ->
-            while (cursor.moveToNext()) {
-                currentCoroutineContext().ensureActive()
-                val id = cursor.getLong(0)
-                val uri = cursor.getString(1)?.let { Contacts.getLookupUri(id, it) }
-                    ?: ContentUris.withAppendedId(Contacts.CONTENT_URI, id)
-                val name = cursor.getString(2)?.takeIf(String::isNotBlank) ?: ContextCompat.getString(context, R.string.search_unnamed_contact)
-                val photo = cursor.getString(3)?.toUri()?.takeIf { it.scheme == "content" }
-                contacts[id] = SearchContact(id, uri, name, photo, emptyList())
+        runCatching {
+            val contacts = linkedMapOf<Long, SearchContact>()
+            resolver.query(Contacts.CONTENT_URI, arrayOf(Contacts._ID, Contacts.LOOKUP_KEY,
+                Contacts.DISPLAY_NAME_PRIMARY, Contacts.PHOTO_THUMBNAIL_URI), null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    currentCoroutineContext().ensureActive()
+                    val id = cursor.getLong(0)
+                    val uri = cursor.getString(1)?.let { Contacts.getLookupUri(id, it) }
+                        ?: ContentUris.withAppendedId(Contacts.CONTENT_URI, id)
+                    val name = cursor.getString(2)?.takeIf(String::isNotBlank) ?: ContextCompat.getString(context, R.string.search_unnamed_contact)
+                    val photo = cursor.getString(3)?.toUri()?.takeIf { it.scheme == "content" }
+                    contacts[id] = SearchContact(id, uri, name, photo, emptyList())
+                }
             }
-        }
-        val numbers = mutableMapOf<Long, MutableSet<String>>()
-        resolver.query(Phone.CONTENT_URI, arrayOf(Phone.CONTACT_ID, Phone.NUMBER), null, null, null)?.use { cursor ->
-            while (cursor.moveToNext()) {
-                currentCoroutineContext().ensureActive()
-                val number = cursor.getString(1)?.filter { it.isDigit() || it == '+' }.orEmpty()
-                if (number.isNotEmpty()) numbers.getOrPut(cursor.getLong(0)) { linkedSetOf() }.add(number)
+            val numbers = mutableMapOf<Long, MutableSet<String>>()
+            resolver.query(Phone.CONTENT_URI, arrayOf(Phone.CONTACT_ID, Phone.NUMBER), null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    currentCoroutineContext().ensureActive()
+                    val number = cursor.getString(1)?.filter { it.isDigit() || it == '+' }.orEmpty()
+                    if (number.isNotEmpty()) numbers.getOrPut(cursor.getLong(0)) { linkedSetOf() }.add(number)
+                }
             }
-        }
-        contacts.values.map { it.copy(numbers = numbers[it.id]?.toList().orEmpty()) }
-            .sortedWith(compareBy({ appSortKey(it.name) }, { it.id }))
+            contacts.values.map { it.copy(numbers = numbers[it.id]?.toList().orEmpty()) }
+                .sortedWith(compareBy({ appSortKey(it.name) }, { it.id }))
+        }.getOrDefault(emptyList())
     }
 
     suspend fun photo(contact: SearchContact): ImageBitmap? = withContext(Dispatchers.IO) {

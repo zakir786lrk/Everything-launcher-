@@ -10,8 +10,8 @@
     <string name="media_idle_title">Aucune lecture en cours</string>
     <string name="media_idle_summary">Appuyez sur Lecture pour reprendre</string>
     <string name="settings_none">Aucun</string>
-    <string name="settings_grace_button">Bouton Grace</string>
-    <string name="grace_button_enable">Activer le bouton Grace</string>
+    <string name="settings_grace_button">Bouton Everything</string>
+    <string name="grace_button_enable">Activer le bouton Everything</string>
     <string name="grace_button_tap">Appui simple</string>
     <string name="grace_button_long_press">Appui long</string>
     <string name="grace_button_open_app">Ouvrir une application</string>

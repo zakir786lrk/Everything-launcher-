@@ -27,6 +27,7 @@ internal object GraceButtonIcon {
     /** Use stable names in storage, not resource IDs which may change in a new build. */
     enum class Suggestion(val id: String, val drawable: Int, val label: Int) {
         Default("default", R.drawable.ic_grace_solid, R.string.icon_edit_default),
+        Drawer("drawer", R.drawable.ms_apps, R.string.icon_suggestion_drawer),
         Search("search", R.drawable.ms_search, R.string.settings_search),
         List("format_list_bulleted", R.drawable.ms_format_list_bulleted, R.string.icon_suggestion_list),
         Power("power_settings_new", R.drawable.ms_power_settings_new, R.string.icon_suggestion_power),

@@ -56,6 +56,7 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
@@ -324,16 +325,39 @@ internal fun HomeScreen(
                 else listState.requestScrollToItem(baselineIndex, 0)
             }
         }
+        val stopFavoritesScroll = customPrefs.stopFavoritesScrollingWhenFitting
+        val needsScrolling by remember(reorder.keys, itemHeights, availableHeight, anchoredOrigin, baselineTop, resolvedTop, toolbarHeight, density, listState) {
+            derivedStateOf {
+                val totalCount = listState.layoutInfo.totalItemsCount
+                val visibleCount = listState.layoutInfo.visibleItemsInfo.size
+                if (totalCount > 0 && visibleCount < totalCount) return@derivedStateOf true
+
+                val startTopPx = with(density) { ((anchoredOrigin ?: if (baselineIndex >= 0) baselineTop else resolvedTop) - toolbarHeight).coerceAtLeast(0.dp).roundToPx() }
+                val totalItemsHeightPx = reorder.keys.sumOf { itemHeights[it] ?: 0 }
+                val bottomReservedPx = with(density) { (bottomInset + if (fixedDockStack != null) 90.dp else 24.dp).roundToPx() }
+                val availableHeightPx = with(density) { availableHeight.roundToPx() }
+
+                (startTopPx + totalItemsHeightPx + bottomReservedPx) > availableHeightPx
+            }
+        }
+        val isScrollAllowed = !editingLayout && reorder.draggingKey == null && !resizing && (!stopFavoritesScroll || needsScrolling)
+
+        LaunchedEffect(stopFavoritesScroll, needsScrolling) {
+            if (stopFavoritesScroll && !needsScrolling) {
+                listState.scrollToItem(0, 0)
+            }
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(top = toolbarHeight)
-                .overscroll(overscroll).nestedScroll(scrollConnection).testTag("home_content"),
+                .then(if (stopFavoritesScroll && !needsScrolling) Modifier else Modifier.overscroll(overscroll))
+                .nestedScroll(scrollConnection).testTag("home_content"),
             contentPadding = PaddingValues(start = uiState.settings.listAppearance.startPadding,
                 end = uiState.settings.listAppearance.endPadding,
                 top = ((anchoredOrigin ?: if (baselineIndex >= 0) baselineTop else resolvedTop) - toolbarHeight).coerceAtLeast(0.dp),
                 bottom = if (baselineIndex >= 0 && (anchoredOrigin == null || anchoredOrigin < toolbarHeight))
                     (availableHeight - baselineTop).coerceAtLeast(100.dp + bottomInset) else 100.dp + bottomInset),
-            userScrollEnabled = !editingLayout && reorder.draggingKey == null && !resizing,
+            userScrollEnabled = isScrollAllowed,
             overscrollEffect = null,
         ) {
             items(reorder.keys.mapNotNull(entriesByKey::get), key = { FavoritesReorderState.itemKey(it.key) }) { entry ->
