@@ -84,7 +84,7 @@ internal enum class SettingsPage {
     WidgetScreen, WidgetScreenEditor, Homepage, AppList, FeedScreen, StatusScreen, DigitalWellbeing, TabletsFoldables,
     Wallpaper, WallpaperDesigner,
     AppCategories, CategoryEditor, TasksOrg, TaskLists,
-    AiAgent, Dock,
+    CustomShortcuts,
 }
 
 /** The window's existing system-bar owner follows the active settings surface. */
@@ -232,7 +232,7 @@ fun LauncherSettingsScreen(
                     SettingsPage.FeedScreen -> SettingsPlaceholder(stringResource(R.string.settings_feed_screen), "feed_screen_settings", back)
                     SettingsPage.StatusScreen -> SettingsPlaceholder(stringResource(R.string.settings_status_screen), "status_screen_settings", back)
                     SettingsPage.Clock -> ClockSettings(uiState, actions, back) { navigate(SettingsPage.ClockStyle) }
-                    SettingsPage.AiAgent -> AiSettingsScreen(onBack = back)
+                    SettingsPage.CustomShortcuts -> ActivityLauncherScreen(onBack = back)
                     SettingsPage.Search -> SearchSettingsScreen(uiState, actions, back)
                     SettingsPage.ShortcutsFolders -> ShortcutsFoldersSettingsScreen(uiState, actions, back)
                     SettingsPage.WidgetScreen -> WidgetScreenSettingsPage(uiState, actions, back) { navigate(SettingsPage.WidgetScreenEditor) }
@@ -393,7 +393,6 @@ fun LauncherSettingsScreen(
                                 navController.currentBackStackEntry?.savedStateHandle?.set("icon_designer_app", app.key)
                             }
                         })
-                    SettingsPage.Dock -> DockSettingsScreen(uiState, actions, back, onManageStacks = { navigate(SettingsPage.AppStacks) })
                     SettingsPage.Changelog -> ChangelogSettings(back)
                     SettingsPage.Licenses -> LicenseSettings(back, navigate)
                     SettingsPage.AppLicense -> AppLicenseSettings(back)
@@ -417,8 +416,7 @@ private fun SettingsHome(
     val showDefaultHomeBanner = isDefaultHome == false
     val languageTag by rememberAppLanguage()
     val categories = listOf(
-        SettingsPage.Dock to LauncherSymbol.Apps,
-        SettingsPage.AiAgent to LauncherSymbol.AutoAwesome,
+        SettingsPage.CustomShortcuts to LauncherSymbol.Steppers,
         SettingsPage.Productivity to LauncherSymbol.Star,
         SettingsPage.Themes to LauncherSymbol.Palette,
         SettingsPage.Advanced to LauncherSymbol.Settings,
@@ -435,8 +433,7 @@ private fun SettingsHome(
             categories.forEachIndexed { index, (page, symbol) ->
                 item(key = page.name) {
                     val title = when (page) {
-                        SettingsPage.Dock -> "Bottom Dock & App Stacks"
-                        SettingsPage.AiAgent -> "AI Agent & Tasker"
+                        SettingsPage.CustomShortcuts -> "Custom Activity Shortcuts"
                         SettingsPage.Productivity -> stringResource(R.string.settings_productivity)
                         SettingsPage.Themes -> stringResource(R.string.settings_themes)
                         SettingsPage.Advanced -> stringResource(R.string.settings_advanced)
@@ -444,8 +441,7 @@ private fun SettingsHome(
                         else -> stringResource(R.string.settings_about)
                     }
                     val summary = when (page) {
-                        SettingsPage.Dock -> "Configure bottom dock, stackable apps, labels & appearance"
-                        SettingsPage.AiAgent -> "Gemini AI assistant, root controls, custom widgets & automations"
+                        SettingsPage.CustomShortcuts -> "Create shortcuts for hidden activities, sub-settings & tile"
                         SettingsPage.Productivity -> stringResource(R.string.settings_productivity_summary)
                         SettingsPage.Themes -> stringResource(R.string.settings_themes_summary)
                         SettingsPage.Advanced -> stringResource(R.string.settings_advanced_summary)

@@ -164,12 +164,12 @@ internal fun ProductivitySettings(
                 ) { navigate(SettingsPage.Folders) }
             }
             item {
-                SettingsActionItem("Bottom Dock & Stacks", "Configure bottom dock, app names & styling", 3, 7, "settings_dock",
-                    leading = { LauncherIcon(LauncherSymbol.Apps) }) { navigate(SettingsPage.Dock) }
+                SettingsActionItem("Custom Activity Shortcuts", "Launch hidden activities, sub-settings & tile", 3, 6, "settings_custom_shortcuts",
+                    leading = { LauncherIcon(LauncherSymbol.Steppers) }) { navigate(SettingsPage.CustomShortcuts) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.app_stacks_title), null, 4, 7, "settings_app_stacks",
-                    leading = { LauncherIcon(LauncherSymbol.Steppers) }) { navigate(SettingsPage.AppStacks) }
+                SettingsActionItem(stringResource(R.string.app_stacks_title), null, 4, 6, "settings_app_stacks",
+                    leading = { LauncherIcon(LauncherSymbol.Apps) }) { navigate(SettingsPage.AppStacks) }
             }
             item {
                 SettingsActionItem(stringResource(R.string.work_profile_title), stringResource(R.string.work_profile_summary),
@@ -300,6 +300,9 @@ internal fun FolderSettings(
     val folders = uiState.folders.filter { it.isAppStack == appStacks && it.id !in excludedIds }
     val title = stringResource(if (appStacks) R.string.app_stacks_title else R.string.settings_folders)
     val createTitle = stringResource(if (appStacks) R.string.app_stack_create else R.string.settings_folder_create)
+    val context = LocalContext.current
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    var stackLabels by remember { mutableStateOf(customPrefs.stackLabelsEnabled) }
     var creating by rememberSaveable { mutableStateOf(false) }
     var openingId by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(openingId, uiState.folders, uiState.settingsSaveFailed) {
@@ -318,6 +321,18 @@ internal fun FolderSettings(
                     enabled = enabled && openingId == null,
                     leading = { LauncherIcon(LauncherSymbol.Plus) },
                 ) { creating = true }
+            }
+            if (appStacks) {
+                item {
+                    SettingsToggleItem(
+                        "Show App Names in App Stacks",
+                        "Display app titles underneath icons in stackable folders",
+                        stackLabels, 0, 1, "stack_show_labels"
+                    ) { value ->
+                        stackLabels = value
+                        customPrefs.stackLabelsEnabled = value
+                    }
+                }
             }
             if (folders.isEmpty()) {
                 item { Text(stringResource(if (appStacks) R.string.app_stacks_empty else R.string.settings_folder_empty), Modifier.padding(horizontal = 4.dp, vertical = 24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -381,6 +396,9 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
         return
     }
     val app = uiState.folderItem(folder)
+    val context = LocalContext.current
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    var isFixedDock by remember(folder.id, customPrefs.fixedDockStackId) { mutableStateOf(customPrefs.fixedDockStackId == folder.id) }
     var rename by rememberSaveable(folder.id) { mutableStateOf(false) }
     var placement by rememberSaveable(folder.id) { mutableStateOf(false) }
     var confirmDelete by rememberSaveable(folder.id) { mutableStateOf(false) }
@@ -396,6 +414,17 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
             Spacer(Modifier.height(ListItemDefaults.SegmentedGap))
             SettingsToggleItem(stringResource(R.string.settings_folder_auto_hide), stringResource(R.string.settings_folder_auto_hide_summary),
                 folder.autoHideApps, 2, 3, "folder_auto_hide") { actions.setFolderAutoHide(folder.id, it) }
+            if (folder.isAppStack) {
+                Spacer(Modifier.height(ListItemDefaults.SegmentedGap))
+                SettingsToggleItem(
+                    "Fix at Bottom as Dock",
+                    "Pin this stack permanently fixed at the bottom of the home screen",
+                    isFixedDock, 3, 4, "stack_fix_dock"
+                ) { checked ->
+                    isFixedDock = checked
+                    customPrefs.fixedDockStackId = if (checked) folder.id else null
+                }
+            }
             TextButton(onClick = { confirmDelete = true }, enabled = LocalSettingsStorageState.current.canEdit, modifier = Modifier.testTag("folder_delete")) {
                 Text(stringResource(if (folder.isAppStack) R.string.app_stack_delete else R.string.settings_folder_delete), color = MaterialTheme.colorScheme.error)
             }

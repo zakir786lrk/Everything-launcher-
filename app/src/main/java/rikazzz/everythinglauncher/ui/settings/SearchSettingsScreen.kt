@@ -42,6 +42,12 @@ import rikazzz.everythinglauncher.ui.LauncherUiState
 internal fun SearchSettingsScreen(uiState: LauncherUiState, actions: LauncherActions, onBack: () -> Unit) {
     val settings = uiState.settings.search
     val context = LocalContext.current
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    var calcEnabled by remember { mutableStateOf(customPrefs.searchCalculatorEnabled) }
+    var devSettingsEnabled by remember { mutableStateOf(customPrefs.searchDeviceSettingsEnabled) }
+    var webSugEnabled by remember { mutableStateOf(customPrefs.searchWebSuggestionsEnabled) }
+    var chipsEnabled by remember { mutableStateOf(customPrefs.searchEngineChipsEnabled) }
+    var customShortcutsEnabled by remember { mutableStateOf(customPrefs.searchCustomShortcutsEnabled) }
     val contacts = remember(context) { SearchContacts(context) }
     var hasAccess by remember { mutableStateOf(contacts.hasAccess()) }
     var permissionRequested by rememberSaveable { mutableStateOf(false) }
@@ -115,6 +121,44 @@ internal fun SearchSettingsScreen(uiState: LauncherUiState, actions: LauncherAct
             item {
                 SettingsToggleItem(stringResource(R.string.search_hidden_apps), stringResource(R.string.search_hidden_apps_summary),
                     settings.hiddenApps, 5, 6, "search_hidden_apps", enabled = settings.enabled) { value -> update { it.copy(hiddenApps = value) } }
+            }
+            item {
+                SettingsHeading("Quick Search Features")
+            }
+            item {
+                SettingsToggleItem("Math Calculator", "Evaluate math expressions directly in search results",
+                    calcEnabled, 0, 5, "search_calc") {
+                    calcEnabled = it
+                    customPrefs.searchCalculatorEnabled = it
+                }
+            }
+            item {
+                SettingsToggleItem("Device Settings Search", "Search and open system settings (Wi-Fi, Bluetooth, Battery, etc.)",
+                    devSettingsEnabled, 1, 5, "search_dev_settings") {
+                    devSettingsEnabled = it
+                    customPrefs.searchDeviceSettingsEnabled = it
+                }
+            }
+            item {
+                SettingsToggleItem("Web Search Suggestions", "Instant autocomplete search suggestions from Google",
+                    webSugEnabled, 2, 5, "search_web_sug") {
+                    webSugEnabled = it
+                    customPrefs.searchWebSuggestionsEnabled = it
+                }
+            }
+            item {
+                SettingsToggleItem("Search Engine Chips", "Show quick engine chips (Google, YouTube, Reddit, Wikipedia, etc.)",
+                    chipsEnabled, 3, 5, "search_engine_chips") {
+                    chipsEnabled = it
+                    customPrefs.searchEngineChipsEnabled = it
+                }
+            }
+            item {
+                SettingsToggleItem("Custom Activity Shortcuts", "Include user-created custom activity shortcuts in search",
+                    customShortcutsEnabled, 4, 5, "search_custom_shortcuts") {
+                    customShortcutsEnabled = it
+                    customPrefs.searchCustomShortcutsEnabled = it
+                }
             }
         }
     }

@@ -211,6 +211,60 @@ fun AppDrawerScreen(
                 }
             }
         }
+
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+        val drawerShortcuts = remember(customPrefs) { customPrefs.getCustomShortcuts().filter { it.showInDrawer } }
+        if (drawerShortcuts.isNotEmpty() && selectedLetter == null) {
+            item(key = "section:custom_shortcuts") {
+                AppListSectionHeader(label = "Custom Shortcuts")
+            }
+            items(drawerShortcuts, key = { "drawer_custom_shortcut:${it.id}" }) { shortcut ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = LauncherLayout.RowMinHeight)
+                        .clip(LauncherLayout.RowShape)
+                        .clickable {
+                            rikazzz.everythinglauncher.customshortcuts.ActivityLauncherHelper.launchShortcut(context, shortcut)
+                        }
+                        .padding(horizontal = LauncherLayout.ContentInset, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        modifier = Modifier.size(36.dp),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.tertiaryContainer
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painterResource(R.drawable.ms_steppers),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(LauncherLayout.IconLabelGap))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            shortcut.name,
+                            color = appearance.text,
+                            style = MaterialTheme.typography.bodyLarge.copy(shadow = appearance.textShadow),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            shortcut.packageName,
+                            color = appearance.text.copy(alpha = 0.6f),
+                            style = MaterialTheme.typography.labelSmall.copy(shadow = appearance.textShadow),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

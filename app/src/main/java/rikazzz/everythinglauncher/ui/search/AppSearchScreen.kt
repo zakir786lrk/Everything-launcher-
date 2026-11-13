@@ -1,16 +1,22 @@
 package rikazzz.everythinglauncher.ui.search
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberOverscrollEffect
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.*
@@ -40,13 +46,20 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import rikazzz.everythinglauncher.R
+import rikazzz.everythinglauncher.customshortcuts.ActivityLauncherHelper
 import rikazzz.everythinglauncher.data.*
 import rikazzz.everythinglauncher.platform.SearchLauncher
+import rikazzz.everythinglauncher.quicksearch.CalculatorUtils
+import rikazzz.everythinglauncher.quicksearch.DeviceSettingItem
+import rikazzz.everythinglauncher.quicksearch.DeviceSettingsRepository
+import rikazzz.everythinglauncher.quicksearch.QuickSearchEngineRegistry
+import rikazzz.everythinglauncher.quicksearch.WebSuggestionsUtils
 import rikazzz.everythinglauncher.ui.LauncherActions
 import rikazzz.everythinglauncher.ui.LauncherUiState
 import rikazzz.everythinglauncher.ui.components.AppIcon
@@ -60,17 +73,15 @@ import rikazzz.everythinglauncher.ui.theme.LocalLauncherAppearance
 import rikazzz.everythinglauncher.ui.theme.effectiveDisplay
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import rikazzz.everythinglauncher.ai.AiChatSheet
-import rikazzz.everythinglauncher.ai.AiPreferences
-import rikazzz.everythinglauncher.ai.AiProgram
-import rikazzz.everythinglauncher.ai.RootExecutor
 
 private sealed interface SearchResult {
     val key: String
     data class App(val app: LauncherApp) : SearchResult { override val key = "app:" + app.key }
     data class Shortcut(val app: LauncherApp) : SearchResult { override val key = "shortcut:" + app.key }
-    data class Automation(val program: AiProgram) : SearchResult { override val key = "prog:" + program.id }
-    data class AiCommand(val prompt: String) : SearchResult { override val key = "ai_prompt:" + prompt }
+    data class CustomShortcut(val shortcut: CustomActivityShortcut) : SearchResult { override val key = "custom_shortcut:" + shortcut.id }
+    data class DeviceSetting(val item: DeviceSettingItem) : SearchResult { override val key = "setting:" + item.id }
+    data class Calculator(val expression: String, val result: String) : SearchResult { override val key = "calc:" + expression }
+    data class WebSuggestion(val suggestion: String) : SearchResult { override val key = "web_sug:" + suggestion }
     data class Contact(val contact: SearchContact) : SearchResult { override val key = "contact:" + contact.id }
     data object Internet : SearchResult { override val key = "search_internet_result" }
 }
@@ -92,14 +103,11 @@ internal fun AppSearchScreen(
     val settings = uiState.settings.search
     val query = queryState.text.toString().trim()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val aiPrefs = remember(context) { AiPreferences(context) }
-    var activeAiPrompt by remember { mutableStateOf<String?>(null) }
+    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
+    val deviceSettingsRepo = remember(context) { DeviceSettingsRepository(context) }
     val keyboard = LocalSoftwareKeyboardController.current
     var requestKeyboard by remember { mutableStateOf(transition == null) }
     LaunchedEffect(transition) {
-        // Give the hero a short head start, then let the IME enter alongside it.
-        // Keep this true when the transition ends so focus is not requested twice.
         if (transition != null) delay(100)
         requestKeyboard = true
     }
@@ -118,11 +126,25 @@ internal fun AppSearchScreen(
         value = emptyList()
         if (settings.enabled && settings.contacts && hasContactsAccess) contactsSource.observe().collect { value = it }
     }
+
+    var webSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(query, customPrefs.searchWebSuggestionsEnabled) {
+        if (customPrefs.searchWebSuggestionsEnabled && query.length >= 2) {
+            webSuggestions = WebSuggestionsUtils.getSuggestions(query)
+        } else {
+            webSuggestions = emptyList()
+        }
+    }
+
     val apps = remember(uiState.allApps, uiState.effectiveHiddenAppKeys, settings.hiddenApps) {
         uiState.allApps.filter { it.folderId == null && (settings.hiddenApps || it.key !in uiState.effectiveHiddenAppKeys) }
     }
     val names = rememberAppSearchNames(apps)
-    val results: List<SearchResult> = remember(apps, names, contacts, query, settings, hasContactsAccess, uiState.shortcutApps) {
+    val customShortcuts = remember(customPrefs) { customPrefs.getCustomShortcuts() }
+
+    val results: List<SearchResult> = remember(
+        apps, names, contacts, query, settings, hasContactsAccess, uiState.shortcutApps, customShortcuts, webSuggestions
+    ) {
         if (query.isEmpty()) {
             if (settings.suggestions) {
                 val byKey = apps.associateBy { it.key }
@@ -130,9 +152,25 @@ internal fun AppSearchScreen(
             } else emptyList()
         } else {
             val term = SearchQuery(query, settings.fuzzy)
-            val isAiPrefix = query.startsWith("/") || query.startsWith("ai:") || query.startsWith("cmd:")
-            val cleanQuery = if (isAiPrefix) query.replaceFirst(Regex("^(/|ai:|cmd:) *"), "") else query
 
+            // 1. Math calculation
+            val calcResult = if (customPrefs.searchCalculatorEnabled && CalculatorUtils.isMathExpression(query)) {
+                CalculatorUtils.evaluateExpression(query)
+            } else null
+
+            // 2. Matching device settings
+            val matchedSettings = if (customPrefs.searchDeviceSettingsEnabled) {
+                deviceSettingsRepo.searchSettings(query).take(3).map { SearchResult.DeviceSetting(it) }
+            } else emptyList()
+
+            // 3. Matching custom activity shortcuts
+            val matchedCustomShortcuts = if (customPrefs.searchCustomShortcutsEnabled) {
+                customShortcuts.filter {
+                    it.showInSearch && (it.name.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true))
+                }.take(3).map { SearchResult.CustomShortcut(it) }
+            } else emptyList()
+
+            // 4. Apps and app shortcuts
             val matchedApps = apps.mapNotNull { app ->
                 val score = names?.get(app.key)?.score(term) ?: return@mapNotNull null
                 score to app
@@ -140,31 +178,28 @@ internal fun AppSearchScreen(
 
             val matchedShortcuts = uiState.shortcutApps.filter {
                 it.label.contains(query, ignoreCase = true)
-            }.take(4).map { SearchResult.Shortcut(it) }
+            }.take(3).map { SearchResult.Shortcut(it) }
 
-            val matchedAutomations = aiPrefs.getSavedPrograms().filter {
-                it.name.contains(query, ignoreCase = true) || it.description.contains(query, ignoreCase = true)
-            }.map { SearchResult.Automation(it) }
-
+            // 5. Contacts
             val matchedContacts = if (settings.contacts && hasContactsAccess) contacts.mapNotNull { contact ->
                 contact.score(term)?.let { it to contact }
             }.sortedBy { it.first } else emptyList()
 
             buildList {
-                if (isAiPrefix) {
-                    add(SearchResult.AiCommand(cleanQuery.ifBlank { query }))
+                if (calcResult != null) {
+                    add(SearchResult.Calculator(query, calcResult))
                 }
+                matchedSettings.forEach { add(it) }
+                matchedCustomShortcuts.forEach { add(it) }
                 matchedApps.forEach { add(SearchResult.App(it.second)) }
                 matchedShortcuts.forEach { add(it) }
-                matchedAutomations.forEach { add(it) }
                 matchedContacts.forEach { add(SearchResult.Contact(it.second)) }
-                if (!isAiPrefix) {
-                    add(SearchResult.AiCommand(query))
-                }
+                webSuggestions.forEach { add(SearchResult.WebSuggestion(it)) }
                 if (settings.internet) add(SearchResult.Internet)
             }
         }
     }
+
     fun open(result: SearchResult, bounds: Rect? = null) {
         keyboard?.hide()
         when (result) {
@@ -177,26 +212,34 @@ internal fun AppSearchScreen(
                 val launch = actions.launchAppAt
                 if (launch != null && bounds != null) launch(result.app, bounds) else onLaunch(result.app)
             }
-            is SearchResult.Automation -> {
-                scope.launch {
-                    Toast.makeText(context, "Running task: ${result.program.name}", Toast.LENGTH_SHORT).show()
-                    result.program.commands.forEach { RootExecutor.execute(it) }
-                }
+            is SearchResult.CustomShortcut -> {
                 onDismiss()
+                ActivityLauncherHelper.launchShortcut(context, result.shortcut)
             }
-            is SearchResult.AiCommand -> {
-                activeAiPrompt = result.prompt
+            is SearchResult.DeviceSetting -> {
+                onDismiss()
+                context.startActivity(result.item.toIntent())
+            }
+            is SearchResult.Calculator -> {
+                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("Calculator Result", result.result))
+                Toast.makeText(context, "Copied result: ${result.result}", Toast.LENGTH_SHORT).show()
+            }
+            is SearchResult.WebSuggestion -> {
+                QuickSearchEngineRegistry.launch(context, result.suggestion, customPrefs.defaultSearchEngine)
+                onDismiss()
             }
             is SearchResult.Contact -> {
                 val opened = SearchLauncher.contact(context, result.contact)
                 if (opened) onDismiss() else Toast.makeText(context, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
             }
             SearchResult.Internet -> {
-                val opened = SearchLauncher.internet(context, query, settings)
-                if (opened) onDismiss() else Toast.makeText(context, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
+                QuickSearchEngineRegistry.launch(context, query, customPrefs.defaultSearchEngine)
+                onDismiss()
             }
         }
     }
+
     val list = rememberLazyListState()
     val overscroll = rememberOverscrollEffect()
     val scrollConnection = rememberLauncherListGestureConnection(
@@ -208,11 +251,9 @@ internal fun AppSearchScreen(
     val density = LocalDensity.current
     var searchBarHeight by remember { mutableStateOf(56.dp) }
     val listTop = 12.dp + searchBarHeight / 2
-    // The IME resizes the viewport; navigation-bar space stays inside the list
-    // so rows can draw behind the bar and still scroll fully above it.
     val bottomInset = WindowInsets.safeDrawing.exclude(WindowInsets.ime).asPaddingValues().calculateBottomPadding()
     val backDistance = with(density) { 30.dp.toPx() } * if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1 else -1
-    // Wallpaper tint and window blur are owned by LauncherScreen, exactly as for the app list.
+
     Box(modifier.fillMaxSize().testTag("app_search").graphicsLayer {
         alpha = (if (transition != null) 1f else enterAlpha) * (1f - backProgress)
         translationX = backDistance * backProgress
@@ -220,53 +261,156 @@ internal fun AppSearchScreen(
         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
         .padding(top = stableStatusBarInset())
         .imePadding().padding(horizontal = 16.dp)) {
-        // Clip at the field's widest part, where the overlaid pill conceals the
-        // entire edge. Content padding preserves the first result's resting gap.
-        LazyColumn(Modifier.fillMaxSize().padding(top = listTop)
-            .testTag("app_search_results")
-            .observeListGestures(scrollConnection)
-            .overscroll(overscroll)
-            .nestedScroll(scrollConnection)
-            .graphicsLayer { alpha = transition?.searchResultsAlpha ?: 1f }, state = list,
-            // The shared connection feeds both edges even when all results fit.
+
+        LazyColumn(
+            Modifier.fillMaxSize().padding(top = listTop)
+                .testTag("app_search_results")
+                .observeListGestures(scrollConnection)
+                .overscroll(overscroll)
+                .nestedScroll(scrollConnection)
+                .graphicsLayer { alpha = transition?.searchResultsAlpha ?: 1f },
+            state = list,
             overscrollEffect = null,
-            contentPadding = PaddingValues(top = searchBarHeight / 2 + 16.dp, bottom = 24.dp + bottomInset)) {
+            contentPadding = PaddingValues(top = searchBarHeight / 2 + 16.dp, bottom = 64.dp + bottomInset)
+        ) {
             if (query.isNotEmpty() && names != null && results.isEmpty()) item {
                 Text(stringResource(R.string.search_no_results), Modifier.padding(20.dp), color = appearance.text)
             }
+
             itemsIndexed(results, key = { _, result -> result.key }) { index, result ->
-                val label = when (result) {
-                    is SearchResult.App -> result.app.label
-                    is SearchResult.Shortcut -> "Shortcut: " + result.app.label
-                    is SearchResult.Automation -> "⚡ " + result.program.name
-                    is SearchResult.AiCommand -> "✨ Ask AI: \"" + result.prompt + "\""
-                    is SearchResult.Contact -> result.contact.name
-                    SearchResult.Internet -> stringResource(R.string.search_internet_result)
-                }
-                val resultDisplay = (result as? SearchResult.App)?.app?.effectiveDisplay(appearance)
-                SearchResultRow(label, result.key, first = index == 0, onClick = { open(result, it) },
-                    hideIcon = resultDisplay?.style == IconDisplayStyle.Hidden,
-                    onLongClick = (result as? SearchResult.App)?.let { { keyboard?.hide(); onDetails(it.app) } }) { iconModifier ->
-                    when (result) {
-                        is SearchResult.App -> AppIcon(result.app, iconModifier, size = 40.dp, display = resultDisplay!!)
-                        is SearchResult.Shortcut -> AppIcon(result.app, iconModifier, size = 40.dp)
-                        is SearchResult.Automation -> Surface(modifier = iconModifier.size(40.dp), shape = CircleShape,
-                            color = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer) {
-                            Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ms_bolt), null, Modifier.size(24.dp)) }
+                when (result) {
+                    is SearchResult.Calculator -> {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .combinedClickable(onClick = { open(result) }),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(result.expression, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                                    Text("= ${result.result}", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary) {
+                                    Icon(painterResource(R.drawable.ms_edit), contentDescription = "Copy", modifier = Modifier.padding(8.dp).size(20.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                                }
+                            }
                         }
-                        is SearchResult.AiCommand -> Surface(modifier = iconModifier.size(40.dp), shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
-                            Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ms_auto_awesome), null, Modifier.size(24.dp)) }
+                    }
+                    is SearchResult.DeviceSetting -> {
+                        SearchResultRow(
+                            label = "${result.item.title} (${result.item.category})",
+                            key = result.key,
+                            first = index == 0,
+                            onClick = { open(result, it) },
+                            onLongClick = null
+                        ) { iconModifier ->
+                            Surface(modifier = iconModifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(painterResource(result.item.iconResId), contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
+                            }
                         }
-                        is SearchResult.Contact -> ContactAvatar(result.contact, contactsSource, iconModifier)
-                        SearchResult.Internet -> Surface(modifier = iconModifier.size(40.dp), shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) {
-                            Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ms_travel_explore), null, Modifier.size(24.dp)) }
+                    }
+                    is SearchResult.CustomShortcut -> {
+                        SearchResultRow(
+                            label = result.shortcut.name,
+                            key = result.key,
+                            first = index == 0,
+                            onClick = { open(result, it) },
+                            onLongClick = null
+                        ) { iconModifier ->
+                            Surface(modifier = iconModifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.tertiaryContainer) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(painterResource(R.drawable.ms_steppers), contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                                }
+                            }
+                        }
+                    }
+                    is SearchResult.WebSuggestion -> {
+                        SearchResultRow(
+                            label = result.suggestion,
+                            key = result.key,
+                            first = index == 0,
+                            onClick = { open(result, it) },
+                            onLongClick = null
+                        ) { iconModifier ->
+                            Surface(modifier = iconModifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(painterResource(R.drawable.ms_search), contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        val label = when (result) {
+                            is SearchResult.App -> result.app.label
+                            is SearchResult.Shortcut -> "Shortcut: " + result.app.label
+                            is SearchResult.Contact -> result.contact.name
+                            SearchResult.Internet -> stringResource(R.string.search_internet_result)
+                            else -> ""
+                        }
+                        val resultDisplay = (result as? SearchResult.App)?.app?.effectiveDisplay(appearance)
+                        SearchResultRow(
+                            label, result.key, first = index == 0, onClick = { open(result, it) },
+                            hideIcon = resultDisplay?.style == IconDisplayStyle.Hidden,
+                            onLongClick = (result as? SearchResult.App)?.let { { keyboard?.hide(); onDetails(it.app) } }
+                        ) { iconModifier ->
+                            when (result) {
+                                is SearchResult.App -> AppIcon(result.app, iconModifier, size = 40.dp, display = resultDisplay!!)
+                                is SearchResult.Shortcut -> AppIcon(result.app, iconModifier, size = 40.dp)
+                                is SearchResult.Contact -> ContactAvatar(result.contact, contactsSource, iconModifier)
+                                SearchResult.Internet -> Surface(modifier = iconModifier.size(40.dp), shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) {
+                                    Box(contentAlignment = Alignment.Center) { Icon(painterResource(R.drawable.ms_travel_explore), null, Modifier.size(24.dp)) }
+                                }
+                                else -> {}
+                            }
                         }
                     }
                 }
             }
         }
+
+        // Search engine quick chips at bottom
+        if (customPrefs.searchEngineChipsEnabled && query.isNotBlank()) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(bottom = bottomInset + 4.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
+                tonalElevation = 6.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    QuickSearchEngineRegistry.engines.forEach { engine ->
+                        SuggestionChip(
+                            onClick = {
+                                keyboard?.hide()
+                                QuickSearchEngineRegistry.launch(context, query, engine.id)
+                                onDismiss()
+                            },
+                            label = { Text(engine.name, fontSize = 12.sp) }
+                        )
+                    }
+                }
+            }
+        }
+
         LauncherSearchBar(
             queryState, stringResource(R.string.settings_search), "app_search_query",
             modifier = Modifier.padding(top = 12.dp).onSizeChanged { searchBarHeight = with(density) { it.height.toDp() } }
@@ -280,10 +424,6 @@ internal fun AppSearchScreen(
                 }
             },
         )
-    }
-
-    if (activeAiPrompt != null) {
-        AiChatSheet(initialPrompt = activeAiPrompt!!, onDismiss = { activeAiPrompt = null })
     }
 }
 

@@ -66,7 +66,7 @@ internal fun AppStack(
         val inset = AppStackInset.dp
         // Anchor the first icon's LEFT edge, rather than centering it in a wide cell.
         val context = androidx.compose.ui.platform.LocalContext.current
-        val showLabels = remember(context) { rikazzz.everythinglauncher.ai.AiPreferences(context).stackLabelsEnabled }
+        val showLabels = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context).stackLabelsEnabled }
         val labelExtra = if (showLabels) 14.dp else 0.dp
         val step = (maxWidth - inset * 2 - displayedIconSize) / (columns - 1)
         val rowStep = displayedIconSize + labelExtra + AppStackRowGap.dp

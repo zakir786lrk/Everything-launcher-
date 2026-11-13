@@ -185,9 +185,10 @@ fun HomeScreen(
     val itemHeights = remember { mutableStateMapOf<String, Int>() }
     val density = LocalDensity.current
     val context = LocalContext.current
-    val aiPrefs = remember(context) { rikazzz.everythinglauncher.ai.AiPreferences(context) }
-    var aiWidgets by remember { mutableStateOf(aiPrefs.getWidgets()) }
-    LaunchedEffect(Unit) { aiWidgets = aiPrefs.getWidgets() }
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    val fixedDockStack = remember(uiState.folders, customPrefs.fixedDockStackId) {
+        uiState.folders.firstOrNull { it.id == customPrefs.fixedDockStackId && it.isAppStack }
+    }
     val haptics by rememberUpdatedState(LocalHapticFeedback.current)
     val saveOrder by rememberUpdatedState<(List<String>) -> Unit>({ keys ->
         // A category remains one sortable homepage item even though it renders several rows.
@@ -382,20 +383,7 @@ fun HomeScreen(
                                 deprioritizeAllDay = uiState.settings.calendar.deprioritizeAllDay,
                                 interactive = inputEnabled, onLongClick = {}, onWeatherClick = onWeatherClick,
                                 clockActive = inputEnabled)
-                            if (aiWidgets.isNotEmpty()) {
-                                Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
-                                    aiWidgets.forEach { widget ->
-                                        rikazzz.everythinglauncher.ai.AiWidgetCard(
-                                            widget = widget,
-                                            onDelete = { id ->
-                                                aiPrefs.deleteWidget(id)
-                                                aiWidgets = aiPrefs.getWidgets()
-                                            }
-                                        )
-                                    }
-                                }
                             }
-                        }
                         // Keep the slot while empty so its height springs to zero instead of
                         // disappearing in one measure pass. Following rows flow into the gap.
                         grace == GraceWidget.Media -> Box(Modifier.fillMaxWidth().animateContentSize(
@@ -426,7 +414,9 @@ fun HomeScreen(
                         app != null -> {
                             val categoryIcon = categoryIcons[homeContent.owners[entry.key]] ?: CategoryIcon.None
                             val folder = app.folderId?.let(favoriteFolders::get)
-                            if (folder?.isAppStack == true) AppStack(folder, uiState,
+                            if (folder != null && folder.id == fixedDockStack?.id) {
+                                // Pinned at bottom as dock, hide from scrollable entries
+                            } else if (folder?.isAppStack == true) AppStack(folder, uiState,
                                 onLaunch = { item, bounds -> rowGestures.onLaunchAt?.invoke(item, bounds) ?: onLaunchApp(item) },
                                 onDetails = onAppDetails, onEdit = { onEditFolder(folder) },
                                 modifier = Modifier.padding(horizontal = LauncherLayout.ContentInset - AppStackInset.dp, vertical = 4.dp))
@@ -468,25 +458,25 @@ fun HomeScreen(
             modifier = Modifier.padding(start = uiState.settings.listAppearance.startPadding, end = uiState.settings.listAppearance.endPadding)
                 .offset(y = (if (baselineIndex >= 0) baselineTop else resolvedTop) - 20.dp))
 
-        // Fixed bottom dock for stackable apps and favorites
-        val dockApps = remember(entries, uiState.allApps) { entries.mapNotNull { entry -> uiState.findItem(entry.key)?.takeIf { it.folderId == null } }.take(5) }
-        val dockFolders = remember(uiState.folders) { uiState.folders.filter { it.isAppStack }.take(2) }
-        if (!editingLayout && aiPrefs.showDock && (dockApps.isNotEmpty() || dockFolders.isNotEmpty())) {
-            HomeDock(
-                apps = dockApps,
-                folders = dockFolders,
-                uiState = uiState,
-                dockLabelsEnabled = aiPrefs.dockLabelsEnabled,
-                backgroundStyle = aiPrefs.dockBackgroundStyle,
-                onLaunchApp = { app, bounds -> rowGestures.onLaunchAt?.invoke(app, bounds) ?: onLaunchApp(app) },
-                onAppDetails = onAppDetails,
-                onOpenFolder = onOpenFolder,
-                onEditFolder = onEditFolder,
+        // Fixed bottom dock as original AppStack
+        if (!editingLayout && fixedDockStack != null) {
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = LauncherLayout.ContentInset - AppStackInset.dp)
                     .padding(bottom = bottomInset + 8.dp)
                     .zIndex(3f)
-            )
+            ) {
+                AppStack(
+                    stack = fixedDockStack,
+                    uiState = uiState,
+                    onLaunch = { item, bounds -> rowGestures.onLaunchAt?.invoke(item, bounds) ?: onLaunchApp(item) },
+                    onDetails = onAppDetails,
+                    onEdit = { onEditFolder(fixedDockStack) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
@@ -524,9 +514,6 @@ internal fun LegacyHomeClockHeader(
         ClockColorPart.SecondTens, ClockColorPart.SecondOnes)
         .map(colors::getValue)
     val context = LocalContext.current
-    val aiPrefs = remember(context) { rikazzz.everythinglauncher.ai.AiPreferences(context) }
-    var aiWidgets by remember { mutableStateOf(aiPrefs.getWidgets()) }
-    LaunchedEffect(Unit) { aiWidgets = aiPrefs.getWidgets() }
     val locale = LocalConfiguration.current.locales[0]
     val clockText = formatHomeClock(now, DateFormat.is24HourFormat(context), locale, leadingZero = clockStyle.face.showLeadingZero)
     val weekdayLocale = remember(locale, week, clockStyle.face.useLatinLetters) {
