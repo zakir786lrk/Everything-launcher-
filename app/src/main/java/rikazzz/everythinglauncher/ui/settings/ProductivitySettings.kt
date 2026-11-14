@@ -510,7 +510,7 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
                 val newApps = dynamicApps.filter { it.key !in existingKeys }
                 if (newApps.isNotEmpty()) {
                     val updatedKeys = folder.appKeys + newApps.map { it.key }
-                    actions.updateFolder(folder.id, updatedKeys, folder.placement, folder.appListAtBottom)
+                    actions.saveFolder(folder.copy(appKeys = updatedKeys))
                     Toast.makeText(context, "Added ${newApps.size} apps from ${type.label()}", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(context, "All ${type.label()} apps are already in this folder", Toast.LENGTH_SHORT).show()

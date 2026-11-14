@@ -46,6 +46,7 @@ import rikazzz.everythinglauncher.data.IconDisplayStyle
 import rikazzz.everythinglauncher.data.HomeLayout
 import rikazzz.everythinglauncher.data.LauncherApp
 import rikazzz.everythinglauncher.data.LauncherFolder
+import rikazzz.everythinglauncher.data.PopupItem
 import rikazzz.everythinglauncher.data.PrivateSpaceFolderId
 import rikazzz.everythinglauncher.data.ShortcutResult
 import rikazzz.everythinglauncher.data.ShortcutStatus

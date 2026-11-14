@@ -36,7 +36,7 @@ object DynamicAppsHelper {
                 uiState.recentlyInstalledApps.take(limit)
             }
             DynamicAppType.RecentlyOpened -> {
-                val recentKeys = uiState.settings.recentAppKeys
+                val recentKeys = uiState.settings.search.recentAppKeys
                 val found = recentKeys.mapNotNull { key ->
                     uiState.findItem(key) ?: uiState.allApps.firstOrNull { it.key == key }
                 }.distinctBy { it.key }
