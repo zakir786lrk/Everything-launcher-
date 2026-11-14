@@ -208,25 +208,21 @@ internal fun ProductivitySettings(
             item {
                 SettingsActionItem(
                     stringResource(R.string.settings_folders), pluralStringResource(R.plurals.settings_folder_count, uiState.folders.count { !it.isAppStack }, uiState.folders.count { !it.isAppStack }),
-                    2, 6, "settings_open_folders",
+                    2, 5, "settings_open_folders",
                     leading = { LauncherIcon(LauncherSymbol.Folder) },
                 ) { navigate(SettingsPage.Folders) }
             }
             item {
-                SettingsActionItem("Custom Activity Shortcuts", "Launch hidden activities, sub-settings & tile", 3, 6, "settings_custom_shortcuts",
-                    leading = { LauncherIcon(LauncherSymbol.Steppers) }) { navigate(SettingsPage.CustomShortcuts) }
-            }
-            item {
-                SettingsActionItem(stringResource(R.string.app_stacks_title), null, 4, 6, "settings_app_stacks",
+                SettingsActionItem(stringResource(R.string.app_stacks_title), null, 3, 5, "settings_app_stacks",
                     leading = { LauncherIcon(LauncherSymbol.Apps) }) { navigate(SettingsPage.AppStacks) }
             }
             item {
                 SettingsActionItem(stringResource(R.string.work_profile_title), stringResource(R.string.work_profile_summary),
-                    4, 6, "settings_open_work_profile", leading = { LauncherIcon(LauncherSymbol.Work) }) { navigate(SettingsPage.WorkProfile) }
+                    4, 5, "settings_open_work_profile", leading = { LauncherIcon(LauncherSymbol.Work) }) { navigate(SettingsPage.WorkProfile) }
             }
             item {
                 SettingsActionItem(stringResource(R.string.private_space_title), stringResource(R.string.private_space_summary),
-                    5, 6, "settings_open_private_space", leading = { LauncherIcon(LauncherSymbol.Lock) }) { navigate(SettingsPage.PrivateSpace) }
+                    5, 5, "settings_open_private_space", leading = { LauncherIcon(LauncherSymbol.Lock) }) { navigate(SettingsPage.PrivateSpace) }
             }
             item { SettingsHeading(stringResource(R.string.settings_advanced)) }
             item {

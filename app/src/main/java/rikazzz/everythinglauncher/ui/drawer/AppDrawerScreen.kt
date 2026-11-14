@@ -102,9 +102,6 @@ fun AppDrawerScreen(
     val appearance = LocalLauncherAppearance.current
     val listAppearance = LocalListAppearance.current
     val density = LocalDensity.current
-    val context = LocalContext.current
-    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
-    val drawerShortcuts = remember(customPrefs) { customPrefs.getCustomShortcuts().filter { it.showInDrawer } }
     val bottomInset = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
     val safeTop = with(density) { (stableStatusBarInset() + 12.dp)
         .coerceAtLeast(LauncherLayout.TopFadeHeight).roundToPx() }
@@ -225,57 +222,6 @@ fun AppDrawerScreen(
                         if (!privateLoading) TextButton(onClick = if (privateFailed) onRetryPrivateSpace else onPrivateSpaceSettings) {
                             Text(stringResource(if (privateFailed) R.string.retry else R.string.private_space_setup), color = appearance.text)
                         }
-                    }
-                }
-            }
-        }
-
-        if (drawerShortcuts.isNotEmpty() && selectedLetter == null) {
-            item(key = "section:custom_shortcuts") {
-                AppListSectionHeader(label = "Custom Shortcuts")
-            }
-            items(drawerShortcuts, key = { "drawer_custom_shortcut:${it.id}" }) { shortcut ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = LauncherLayout.RowMinHeight)
-                        .clip(LauncherLayout.RowShape)
-                        .clickable {
-                            rikazzz.everythinglauncher.customshortcuts.ActivityLauncherHelper.launchShortcut(context, shortcut)
-                        }
-                        .padding(horizontal = LauncherLayout.ContentInset, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        modifier = Modifier.size(36.dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.tertiaryContainer
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painterResource(R.drawable.ms_steppers),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(LauncherLayout.IconLabelGap))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            shortcut.name,
-                            color = appearance.text,
-                            style = MaterialTheme.typography.bodyLarge.copy(shadow = appearance.textShadow),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            shortcut.packageName,
-                            color = appearance.text.copy(alpha = 0.6f),
-                            style = MaterialTheme.typography.labelSmall.copy(shadow = appearance.textShadow),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
                 }
             }

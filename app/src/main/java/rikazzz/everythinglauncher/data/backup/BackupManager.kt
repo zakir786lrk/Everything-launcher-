@@ -55,6 +55,7 @@ object BackupManager {
                 put("mediaKeepWhilePlaying", settings.mediaKeepWhilePlaying)
                 put("dismissResistance", settings.dismissResistance)
                 put("dismissThresholdDp", settings.dismissThresholdDp)
+                put("mediaAppKey", settings.mediaAppKey)
                 put("calendarAgenda", settings.calendarAgenda)
                 put("showBatteryPercentage", settings.showBatteryPercentage)
                 put("allowHapticFeedback", settings.allowHapticFeedback)
@@ -64,9 +65,14 @@ object BackupManager {
                 put("paletteStyle", settings.paletteStyle.name)
                 put("darkMode", settings.darkMode.name)
                 put("amoledMode", settings.amoledMode)
+                put("iconPackPackage", settings.iconPackPackage)
+                settings.iconPackPackages.takeIf { it.isNotEmpty() }?.let { put("iconPackPackagesJson", JSONArray(it).toString()) }
+                settings.iconDesign?.let { put("iconDesignJson", it.encode()) }
                 put("mediaPlayer", settings.mediaPlayer)
                 put("weatherEnabled", settings.weatherEnabled)
                 put("weatherForecastDays", settings.weatherForecastDays)
+                put("weatherLocationId", settings.weatherLocationId)
+                put("clockAppKey", settings.clockAppKey)
                 put("hideStatusBar", settings.hideStatusBar)
                 put("hideAlphabet", settings.hideAlphabet)
                 put("hideFavoriteNames", settings.hideFavoriteNames)
@@ -74,6 +80,9 @@ object BackupManager {
                 put("wallpaperDimAmount", settings.wallpaperDimAmount)
                 put("blurWallpaper", settings.blurWallpaper)
                 put("wallpaperBlurRadius", settings.wallpaperBlurRadius)
+                put("appFontId", settings.appFontId)
+                put("fontLibraryJson", settings.fontLibrary.encode())
+                put("applyFontToSettings", settings.applyFontToSettings)
                 put("preferNonAccessibility", settings.preferNonAccessibility)
                 put("mediaStyleJson", settings.mediaStyle.encode())
                 put("graceButtonJson", settings.graceButton.encode())
@@ -91,6 +100,7 @@ object BackupManager {
                 put("digitalWellbeingJson", settings.digitalWellbeing.encode())
                 put("widgetScreenJson", settings.widgetScreen.encode())
                 put("calendarPreferencesJson", settings.calendar.encode())
+                settings.appCategories?.let { put("appCategoriesJson", AppCategory.encode(it)) }
             }
             root.put("settings", settingsObj)
 
@@ -117,10 +127,52 @@ object BackupManager {
             }
             root.put("folders", foldersArray)
 
-            // 6. Home favorites order
+            // 6. Home favorites order & favorite keys
+            val favs = uiState.favoriteOrder.ifEmpty { uiState.favoriteKeys.toList() }
+            val favsArray = JSONArray()
+            favs.forEach { favsArray.put(it) }
+            root.put("favorite_keys", favsArray)
+
             val homeItemsArray = JSONArray()
             uiState.homeItems.forEach { homeItemsArray.put(it.key) }
             root.put("home_items", homeItemsArray)
+
+            // 7. Custom Icons & Icon Files
+            val db = LauncherDatabase.getInstance(context)
+            val itemsDao = db.itemsDao()
+            val iconsList = itemsDao.readIcons()
+            val customIconsArray = JSONArray()
+            iconsList.forEach { iconEntity ->
+                customIconsArray.put(JSONObject().apply {
+                    put("itemKey", iconEntity.itemKey)
+                    put("iconJson", iconEntity.iconJson)
+                })
+            }
+            root.put("custom_icons", customIconsArray)
+
+            val iconFilesDir = File(context.filesDir, "item_icons")
+            if (iconFilesDir.exists() && iconFilesDir.isDirectory) {
+                val iconFilesObj = JSONObject()
+                iconFilesDir.listFiles { f -> f.isFile && f.name.endsWith(".png") }?.forEach { f ->
+                    try {
+                        val bytes = f.readBytes()
+                        val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        iconFilesObj.put(f.name, base64)
+                    } catch (_: Exception) {}
+                }
+                root.put("custom_icon_files", iconFilesObj)
+            }
+
+            // 8. App Popups (widgets & shortcuts inside app popups)
+            val popupsList = itemsDao.readPopups()
+            val popupsArray = JSONArray()
+            popupsList.forEach { popup ->
+                popupsArray.put(JSONObject().apply {
+                    put("ownerKey", popup.ownerKey)
+                    put("itemsJson", popup.itemsJson)
+                })
+            }
+            root.put("app_popups", popupsArray)
 
             val fileName = "EverythingLauncher_Backup_$timestamp.json"
             val downloadDir = File("/sdcard/Download").takeIf { it.exists() && it.canWrite() }
@@ -184,6 +236,7 @@ object BackupManager {
                         mediaKeepWhilePlaying = sObj.optBoolean("mediaKeepWhilePlaying", current.mediaKeepWhilePlaying),
                         dismissResistance = sObj.optInt("dismissResistance", current.dismissResistance),
                         dismissThresholdDp = sObj.optInt("dismissThresholdDp", current.dismissThresholdDp),
+                        mediaAppKey = if (sObj.has("mediaAppKey")) sObj.optString("mediaAppKey").takeIf { it.isNotBlank() } else current.mediaAppKey,
                         calendarAgenda = sObj.optBoolean("calendarAgenda", current.calendarAgenda),
                         showBatteryPercentage = sObj.optBoolean("showBatteryPercentage", current.showBatteryPercentage),
                         allowHapticFeedback = sObj.optBoolean("allowHapticFeedback", current.allowHapticFeedback),
@@ -193,9 +246,20 @@ object BackupManager {
                         paletteStyle = sObj.optString("paletteStyle").let { decodePaletteStyle(it) },
                         darkMode = sObj.optString("darkMode").let { name -> ThemeMode.entries.firstOrNull { it.name == name } ?: current.darkMode },
                         amoledMode = sObj.optBoolean("amoledMode", current.amoledMode),
+                        iconPackPackage = if (sObj.has("iconPackPackage")) sObj.optString("iconPackPackage").takeIf { it.isNotBlank() } else current.iconPackPackage,
+                        iconPackPackages = if (sObj.has("iconPackPackagesJson")) {
+                            val raw = sObj.optString("iconPackPackagesJson")
+                            if (raw.isNotBlank()) {
+                                val arr = JSONArray(raw)
+                                (0 until arr.length()).map { arr.getString(it) }
+                            } else current.iconPackPackages
+                        } else current.iconPackPackages,
+                        iconDesign = if (sObj.has("iconDesignJson")) sObj.optString("iconDesignJson").takeIf { it.isNotBlank() }?.let(ItemIcon::decode) else current.iconDesign,
                         mediaPlayer = sObj.optBoolean("mediaPlayer", current.mediaPlayer),
                         weatherEnabled = sObj.optBoolean("weatherEnabled", current.weatherEnabled),
                         weatherForecastDays = sObj.optInt("weatherForecastDays", current.weatherForecastDays),
+                        weatherLocationId = if (sObj.has("weatherLocationId")) sObj.optString("weatherLocationId").takeIf { it.isNotBlank() } else current.weatherLocationId,
+                        clockAppKey = if (sObj.has("clockAppKey")) sObj.optString("clockAppKey").takeIf { it.isNotBlank() } else current.clockAppKey,
                         hideStatusBar = sObj.optBoolean("hideStatusBar", current.hideStatusBar),
                         hideAlphabet = sObj.optBoolean("hideAlphabet", current.hideAlphabet),
                         hideFavoriteNames = sObj.optBoolean("hideFavoriteNames", current.hideFavoriteNames),
@@ -203,6 +267,9 @@ object BackupManager {
                         wallpaperDimAmount = sObj.optInt("wallpaperDimAmount", current.wallpaperDimAmount),
                         blurWallpaper = sObj.optBoolean("blurWallpaper", current.blurWallpaper),
                         wallpaperBlurRadius = sObj.optInt("wallpaperBlurRadius", current.wallpaperBlurRadius),
+                        appFontId = if (sObj.has("appFontId")) sObj.optString("appFontId").takeIf { it.isNotBlank() } else current.appFontId,
+                        fontLibrary = if (sObj.has("fontLibraryJson")) FontLibrary.decode(sObj.getString("fontLibraryJson"), sObj.optString("appFontId")) else current.fontLibrary,
+                        applyFontToSettings = sObj.optBoolean("applyFontToSettings", current.applyFontToSettings),
                         preferNonAccessibility = sObj.optBoolean("preferNonAccessibility", current.preferNonAccessibility),
                         mediaStyle = if (sObj.has("mediaStyleJson")) MediaPlayerStyle.decode(sObj.getString("mediaStyleJson")) else current.mediaStyle,
                         graceButton = if (sObj.has("graceButtonJson")) GraceButtonSettings.decode(sObj.getString("graceButtonJson")) else current.graceButton,
@@ -220,6 +287,7 @@ object BackupManager {
                         digitalWellbeing = if (sObj.has("digitalWellbeingJson")) DigitalWellbeingSettings.decode(sObj.getString("digitalWellbeingJson")) else current.digitalWellbeing,
                         widgetScreen = if (sObj.has("widgetScreenJson")) WidgetScreenSettings.decode(sObj.getString("widgetScreenJson")) else current.widgetScreen,
                         calendar = if (sObj.has("calendarPreferencesJson")) CalendarPreferences.decode(sObj.getString("calendarPreferencesJson")) else current.calendar,
+                        appCategories = if (sObj.has("appCategoriesJson")) AppCategory.decode(sObj.getString("appCategoriesJson")) else current.appCategories,
                     )
                 }
             }
@@ -255,12 +323,47 @@ object BackupManager {
                 }
             }
 
-            // 6. Home items
-            if (root.has("home_items")) {
-                val hArray = root.getJSONArray("home_items")
+            // 6. Home items & favorites order
+            val favsKey = if (root.has("favorite_keys")) "favorite_keys" else if (root.has("home_items")) "home_items" else null
+            if (favsKey != null) {
+                val hArray = root.getJSONArray(favsKey)
                 val keys = mutableListOf<String>()
                 for (i in 0 until hArray.length()) keys.add(hArray.getString(i))
                 actions.reorderFavorites(keys)
+            }
+
+            // 7. Custom Icons & Icon Files
+            val db = LauncherDatabase.getInstance(context)
+            val itemsDao = db.itemsDao()
+
+            if (root.has("custom_icons")) {
+                val iconsArray = root.getJSONArray("custom_icons")
+                for (i in 0 until iconsArray.length()) {
+                    val obj = iconsArray.getJSONObject(i)
+                    itemsDao.saveIcon(ItemIconEntity(obj.getString("itemKey"), obj.getString("iconJson")))
+                }
+            }
+
+            if (root.has("custom_icon_files")) {
+                val iconFilesObj = root.getJSONObject("custom_icon_files")
+                val iconFilesDir = File(context.filesDir, "item_icons")
+                if (!iconFilesDir.exists()) iconFilesDir.mkdirs()
+                iconFilesObj.keys().forEach { fileName ->
+                    try {
+                        val base64 = iconFilesObj.getString(fileName)
+                        val bytes = android.util.Base64.decode(base64, android.util.Base64.NO_WRAP)
+                        File(iconFilesDir, fileName).writeBytes(bytes)
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 8. App Popups
+            if (root.has("app_popups")) {
+                val popupsArray = root.getJSONArray("app_popups")
+                for (i in 0 until popupsArray.length()) {
+                    val obj = popupsArray.getJSONObject(i)
+                    itemsDao.savePopup(AppPopupEntity(obj.getString("ownerKey"), obj.getString("itemsJson")))
+                }
             }
 
             root.optString("timestamp_formatted", "Success")

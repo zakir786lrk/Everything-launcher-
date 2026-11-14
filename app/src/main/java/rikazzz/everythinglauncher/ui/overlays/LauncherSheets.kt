@@ -68,11 +68,12 @@ sealed interface LauncherOverlay {
     data class SettingsDestination(val page: String, val returnToSearch: Boolean = false) : LauncherOverlay
     data object HomeWidgetMenu : LauncherOverlay
     data object CustomWidgetMenu : LauncherOverlay
-    data object Search : LauncherOverlay
+    data class Search(val isAppList: Boolean = false) : LauncherOverlay
 
     companion object {
         /** Every current/future search entry uses the same enable gate. */
-        fun search(enabled: Boolean): LauncherOverlay = if (enabled) Search else SettingsDestination("Search")
+        fun search(enabled: Boolean, isAppList: Boolean = false): LauncherOverlay =
+            if (enabled) Search(isAppList = isAppList) else SettingsDestination("Search")
     }
 }
 
@@ -154,7 +155,7 @@ internal fun LauncherOverlays(
                     else uiState.findItem("folder:$id")
                 }
                 onChange(if ((overlay as? LauncherOverlay.SettingsDestination)?.returnToSearch == true && uiState.settings.search.enabled)
-                    LauncherOverlay.Search else folder?.let { LauncherOverlay.AppDetails(it) })
+                    LauncherOverlay.Search() else folder?.let { LauncherOverlay.AppDetails(it) })
             },
             initialPage = when (overlay) {
                 is LauncherOverlay.FolderSettings -> "folders"
@@ -165,7 +166,7 @@ internal fun LauncherOverlays(
         )
         return
     }
-    if (overlay == LauncherOverlay.Search) {
+    if (overlay is LauncherOverlay.Search) {
         if (!uiState.settings.search.enabled) {
             LaunchedEffect(Unit) { onChange(LauncherOverlay.search(false)) }
             return
@@ -179,6 +180,7 @@ internal fun LauncherOverlays(
             enterAlpha = searchEnterAlpha, queryState = searchQuery,
             transition = searchTransition,
             onSettings = { onChange(LauncherOverlay.SettingsDestination("Search", returnToSearch = true)) },
+            isAppList = overlay.isAppList,
         )
         return
     }
@@ -275,7 +277,7 @@ internal fun LauncherOverlays(
                 LauncherOverlay.CustomWidgetMenu -> HomeWidgetSheet(uiState, actions, onChange, custom = true)
                 is LauncherOverlay.Categories -> CategoryPicker(overlay.app, uiState, actions) { onChange(LauncherOverlay.AppDetails(overlay.app, fromAppList = overlay.fromAppList)) }
                 is LauncherOverlay.CategoryApps -> CategoryAppsSheet(overlay.name, uiState) { onChange(null); onLaunchApp(it) }
-                LauncherOverlay.Agenda, LauncherOverlay.Settings, LauncherOverlay.Search, is LauncherOverlay.Shortcuts,
+                LauncherOverlay.Agenda, LauncherOverlay.Settings, is LauncherOverlay.Search, is LauncherOverlay.Shortcuts,
                 is LauncherOverlay.Homepage, is LauncherOverlay.IconDesigner, is LauncherOverlay.EditPopup,
                 is LauncherOverlay.Folder, is LauncherOverlay.FolderSettings, is LauncherOverlay.SettingsDestination -> Unit
             }

@@ -6,6 +6,13 @@ import android.net.Uri
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.ui.platform.LocalContext
 import rikazzz.everythinglauncher.data.LauncherCustomPreferences
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
+import rikazzz.everythinglauncher.R
+import rikazzz.everythinglauncher.ui.onboarding.SetupWizardScreen
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -86,7 +93,7 @@ internal enum class SettingsPage {
     WidgetScreen, WidgetScreenEditor, Homepage, AppList, FeedScreen, StatusScreen, DigitalWellbeing, TabletsFoldables,
     Wallpaper, WallpaperDesigner,
     AppCategories, CategoryEditor, TasksOrg, TaskLists,
-    CustomShortcuts, Backup,
+    SetupWizard, Backup,
 }
 
 /** The window's existing system-bar owner follows the active settings surface. */
@@ -237,7 +244,7 @@ fun LauncherSettingsScreen(
                     SettingsPage.Backup -> BackupSettingsScreen(uiState, actions, back)
                     SettingsPage.StatusScreen -> SettingsPlaceholder(stringResource(R.string.settings_status_screen), "status_screen_settings", back)
                     SettingsPage.Clock -> ClockSettings(uiState, actions, back) { navigate(SettingsPage.ClockStyle) }
-                    SettingsPage.CustomShortcuts -> ActivityLauncherScreen(onBack = back)
+                    SettingsPage.SetupWizard -> SetupWizardScreen(onDone = back, actions = actions, uiState = uiState)
                     SettingsPage.Search -> SearchSettingsScreen(uiState, actions, back)
                     SettingsPage.ShortcutsFolders -> ShortcutsFoldersSettingsScreen(uiState, actions, back)
                     SettingsPage.WidgetScreen -> WidgetScreenSettingsPage(uiState, actions, back) { navigate(SettingsPage.WidgetScreenEditor) }
@@ -410,6 +417,15 @@ fun LauncherSettingsScreen(
     }
 }
 
+private data class SearchableSetting(
+    val title: String,
+    val summary: String,
+    val category: String,
+    val page: SettingsPage,
+    val keywords: List<String> = emptyList(),
+    val symbol: LauncherSymbol = LauncherSymbol.Settings
+)
+
 @Composable
 private fun SettingsHome(
     isDefaultHome: Boolean?,
@@ -420,70 +436,173 @@ private fun SettingsHome(
 ) {
     val showDefaultHomeBanner = isDefaultHome == false
     val languageTag by rememberAppLanguage()
+    var searchQuery by remember { mutableStateOf("") }
+
     val categories = listOf(
-        SettingsPage.Productivity to LauncherSymbol.Star,
+        SettingsPage.Productivity to LauncherSymbol.Folder,
         SettingsPage.Search to LauncherSymbol.Search,
         SettingsPage.Gestures to LauncherSymbol.Gesture,
         SettingsPage.Themes to LauncherSymbol.Palette,
         SettingsPage.FeedScreen to LauncherSymbol.Outbound,
-        SettingsPage.CustomShortcuts to LauncherSymbol.Steppers,
-        SettingsPage.Backup to LauncherSymbol.Folder,
+        SettingsPage.Backup to LauncherSymbol.History2,
+        SettingsPage.SetupWizard to LauncherSymbol.Check,
         SettingsPage.Advanced to LauncherSymbol.Settings,
         SettingsPage.Language to LauncherSymbol.Language,
         SettingsPage.About to LauncherSymbol.Info,
     )
+
+    val searchableItems = remember(languageTag) {
+        listOf(
+            SearchableSetting("Folders", "Organize apps into folders and home categories", "Productivity", SettingsPage.Folders, listOf("folder", "categories", "home", "drawer"), LauncherSymbol.Folder),
+            SearchableSetting("App Stacks", "Swipeable app piles and dock shortcuts", "Productivity", SettingsPage.AppStacks, listOf("stack", "dock", "pile"), LauncherSymbol.Apps),
+            SearchableSetting("Work Profile", "Manage enterprise work apps and notifications", "Productivity", SettingsPage.WorkProfile, listOf("work", "enterprise", "badge"), LauncherSymbol.Work),
+            SearchableSetting("Private Space", "Secure hidden profile protected by authentication", "Productivity", SettingsPage.PrivateSpace, listOf("private", "secure", "lock", "hidden", "auth"), LauncherSymbol.Lock),
+            SearchableSetting("Dynamic Apps & Recents", "Recently installed, opened, and frequently used apps", "Productivity", SettingsPage.Productivity, listOf("dynamic", "recents", "frequent", "installed"), LauncherSymbol.Star),
+            SearchableSetting("Search Engine & Chips", "Default search engine and quick engine suggestion chips", "Search", SettingsPage.Search, listOf("google", "bing", "duckduckgo", "chips", "web"), LauncherSymbol.Search),
+            SearchableSetting("Auto-Open Keyboard", "Configure keyboard auto-open for search and full app list", "Search", SettingsPage.Search, listOf("keyboard", "ime", "auto", "open", "drawer", "input"), LauncherSymbol.Search),
+            SearchableSetting("Calculator in Search", "Evaluate math expressions directly in search bar", "Search", SettingsPage.Search, listOf("calc", "math", "evaluate"), LauncherSymbol.Search),
+            SearchableSetting("Device Settings Search", "Search and open system Wi-Fi, Bluetooth, Battery, and Display", "Search", SettingsPage.Search, listOf("wifi", "bluetooth", "device", "battery", "display"), LauncherSymbol.Search),
+            SearchableSetting("Contacts Search", "Search contacts with direct Call and SMS shortcuts", "Search", SettingsPage.Search, listOf("contacts", "call", "sms", "phone"), LauncherSymbol.Search),
+            SearchableSetting("Everything Button Gestures", "Configure tap, double tap, long press, and swipe shortcuts", "Gestures", SettingsPage.Gestures, listOf("everything", "grace", "button", "center", "action"), LauncherSymbol.Gesture),
+            SearchableSetting("Home Screen Gestures", "Swipe down for search, swipe up for drawer, double tap alphabet", "Gestures", SettingsPage.Gestures, listOf("gestures", "swipe", "down", "up", "double tap"), LauncherSymbol.Gesture),
+            SearchableSetting("Wallpaper & Effects", "Set wallpaper, dim amount, and blur radius", "Themes", SettingsPage.Wallpaper, listOf("wallpaper", "dim", "blur", "background", "photo"), LauncherSymbol.Palette),
+            SearchableSetting("Colors & Themes", "Dynamic Material colors, palette styles, dark & AMOLED mode", "Themes", SettingsPage.Themes, listOf("dark", "amoled", "light", "palette", "dynamic", "color", "accent"), LauncherSymbol.Palette),
+            SearchableSetting("Fonts & Typography", "Select font family, customized sizes and text weights", "Themes", SettingsPage.Fonts, listOf("font", "text", "typography", "style"), LauncherSymbol.Edit),
+            SearchableSetting("Icon Packs", "Apply third-party icon packs from Play Store or system packs", "Themes", SettingsPage.IconPacks, listOf("icons", "pack", "themed", "monochrome"), LauncherSymbol.Apps),
+            SearchableSetting("Icon Designer", "Customize icon shape, badge, size, and background mask", "Themes", SettingsPage.IconDesigner, listOf("design", "shape", "badge", "size", "mask"), LauncherSymbol.Palette),
+            SearchableSetting("App List & Alphabet Rail", "A-Z letter navigation, layout spacing, and section headers", "Themes", SettingsPage.ListAppearance, listOf("alphabet", "rail", "az", "scrub", "list", "spacing"), LauncherSymbol.Steppers),
+            SearchableSetting("Google News Feed", "Left feed page, topics, search bar and weather integration", "Feed & Pages", SettingsPage.FeedScreen, listOf("news", "feed", "google", "rss", "articles", "left"), LauncherSymbol.Outbound),
+            SearchableSetting("Feed Region & Countries", "Select from 40+ countries or enter any custom country code", "Feed & Pages", SettingsPage.FeedScreen, listOf("region", "country", "language", "feed", "international", "world"), LauncherSymbol.Language),
+            SearchableSetting("Widget Screen Page", "Right widget screen page with customizable layout and widgets", "Feed & Pages", SettingsPage.WidgetScreen, listOf("widgets", "screen", "right", "clock", "weather"), LauncherSymbol.Widgets),
+            SearchableSetting("Backup & Restore", "Export launcher settings with timestamp or restore past backup", "Backup", SettingsPage.Backup, listOf("backup", "restore", "export", "import", "timestamp", "json"), LauncherSymbol.History2),
+            SearchableSetting("Setup Wizard & Permissions", "Re-run welcome wizard, explore features & grant permissions", "Setup", SettingsPage.SetupWizard, listOf("setup", "wizard", "permission", "guide", "welcome", "contacts", "calendar"), LauncherSymbol.Check),
+            SearchableSetting("Clock & Alarm Style", "Clock layout, battery percentage, and alarm clock app", "Advanced", SettingsPage.Clock, listOf("clock", "time", "battery", "alarm", "style"), LauncherSymbol.Clock),
+            SearchableSetting("Calendar & Agenda", "Calendar accounts, agenda display, and event sources", "Advanced", SettingsPage.Calendar, listOf("calendar", "agenda", "events", "schedule"), LauncherSymbol.Calendar),
+            SearchableSetting("Weather Forecast", "Weather forecast days, Open-Meteo source, and weather app", "Advanced", SettingsPage.Weather, listOf("weather", "forecast", "temp", "celsius", "fahrenheit"), LauncherSymbol.Weather),
+            SearchableSetting("Media Player Widget", "Media notification player controls, styling, and keep on pause", "Advanced", SettingsPage.MediaPlayer, listOf("media", "music", "player", "audio", "spotify"), LauncherSymbol.Music),
+            SearchableSetting("Digital Wellbeing", "Screen time, app launch limits, and usage analytics", "Advanced", SettingsPage.DigitalWellbeing, listOf("wellbeing", "usage", "screen time", "focus"), LauncherSymbol.Hourglass),
+            SearchableSetting("Language", appLanguageSummary(languageTag), "System", SettingsPage.Language, listOf("language", "locale", "translation"), LauncherSymbol.Language),
+            SearchableSetting("About Everything Launcher", "App version, changelog, and open-source licenses", "System", SettingsPage.About, listOf("about", "version", "changelog", "licenses", "github"), LauncherSymbol.Info),
+        )
+    }
+
+    val filteredItems = remember(searchQuery, searchableItems) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) emptyList()
+        else searchableItems.filter {
+            it.title.contains(q, ignoreCase = true) ||
+            it.summary.contains(q, ignoreCase = true) ||
+            it.category.contains(q, ignoreCase = true) ||
+            it.keywords.any { k -> k.contains(q, ignoreCase = true) }
+        }
+    }
+
     SettingsScaffold(stringResource(R.string.settings_title), "settings_root", onBack) { padding ->
         SettingsList(padding) {
-            item(key = "settings_intro") { Spacer(Modifier.height(if (showDefaultHomeBanner) 32.dp else 24.dp)) }
-            if (showDefaultHomeBanner) {
-                item(key = "default_home_banner") { DefaultHomeBanner(onSetDefaultHome) }
-                item(key = "default_home_spacing") { Spacer(Modifier.height(32.dp)) }
-            }
-            categories.forEachIndexed { index, (page, symbol) ->
-                item(key = page.name) {
-                    val title = when (page) {
-                        SettingsPage.Productivity -> stringResource(R.string.settings_productivity)
-                        SettingsPage.Search -> stringResource(R.string.settings_search)
-                        SettingsPage.Gestures -> stringResource(R.string.settings_gestures)
-                        SettingsPage.Themes -> stringResource(R.string.settings_themes)
-                        SettingsPage.FeedScreen -> "Feed & Home Pages"
-                        SettingsPage.CustomShortcuts -> "Custom Activity Shortcuts"
-                        SettingsPage.Backup -> "Backup & Restore"
-                        SettingsPage.Advanced -> stringResource(R.string.settings_advanced)
-                        SettingsPage.Language -> stringResource(R.string.settings_language)
-                        else -> stringResource(R.string.settings_about)
-                    }
-                    val summary = when (page) {
-                        SettingsPage.Productivity -> stringResource(R.string.settings_productivity_summary)
-                        SettingsPage.Search -> "Suggestions, engine chips, auto-keyboard & calc"
-                        SettingsPage.Gestures -> "Gestures, Everything button & swipe actions"
-                        SettingsPage.Themes -> stringResource(R.string.settings_themes_summary)
-                        SettingsPage.FeedScreen -> "Google News Feed & Widget Screen pages"
-                        SettingsPage.CustomShortcuts -> "Create shortcuts for hidden activities, sub-settings & tile"
-                        SettingsPage.Backup -> "Export & import launcher settings with timestamp"
-                        SettingsPage.Advanced -> stringResource(R.string.settings_advanced_summary)
-                        SettingsPage.Language -> appLanguageSummary(languageTag)
-                        else -> stringResource(R.string.settings_about_summary)
-                    }
-                    SettingsActionItem(
-                        title, summary, index, categories.size,
-                        tag = "settings_category_${page.name.lowercase()}",
-                        leading = {
-                            Box(
-                                Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                LauncherIcon(symbol, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+            item(key = "settings_search_field") {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                    placeholder = { Text("Search settings...") },
+                    leadingIcon = { LauncherIcon(LauncherSymbol.Search, Modifier.size(20.dp)) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(painterResource(R.drawable.ms_close), contentDescription = "Clear")
                             }
-                        },
-                    ) { navigate(page) }
-                }
+                        }
+                    },
+                    singleLine = true,
+                    shape = CircleShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
             }
-            if (showDefaultHomeBanner) {
-                item(key = "direct_home_spacing") { Spacer(Modifier.height(24.dp)) }
-                item(key = "direct_home") {
-                    SettingsActionItem(stringResource(R.string.settings_open_home), stringResource(R.string.settings_open_home_summary),
-                        0, 1, "settings_open_home", leading = { LauncherIcon(LauncherSymbol.Home) }, onClick = onOpenHome)
+
+            if (searchQuery.isNotBlank()) {
+                if (filteredItems.isEmpty()) {
+                    item(key = "no_search_results") {
+                        Text(
+                            "No settings found matching \"$searchQuery\"",
+                            modifier = Modifier.padding(24.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    filteredItems.forEachIndexed { index, item ->
+                        item(key = "search_item_${item.title}") {
+                            SettingsActionItem(
+                                item.title, "${item.category} • ${item.summary}", index, filteredItems.size,
+                                tag = "settings_search_${item.title.lowercase().replace(' ', '_')}",
+                                leading = {
+                                    Box(
+                                        Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        LauncherIcon(item.symbol, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                                    }
+                                },
+                            ) { navigate(item.page) }
+                        }
+                    }
+                }
+            } else {
+                item(key = "settings_intro") { Spacer(Modifier.height(if (showDefaultHomeBanner) 16.dp else 12.dp)) }
+                if (showDefaultHomeBanner) {
+                    item(key = "default_home_banner") { DefaultHomeBanner(onSetDefaultHome) }
+                    item(key = "default_home_spacing") { Spacer(Modifier.height(20.dp)) }
+                }
+                categories.forEachIndexed { index, (page, symbol) ->
+                    item(key = page.name) {
+                        val title = when (page) {
+                            SettingsPage.Productivity -> stringResource(R.string.settings_productivity)
+                            SettingsPage.Search -> stringResource(R.string.settings_search)
+                            SettingsPage.Gestures -> stringResource(R.string.settings_gestures)
+                            SettingsPage.Themes -> stringResource(R.string.settings_themes)
+                            SettingsPage.FeedScreen -> "Feed & Screen Pages"
+                            SettingsPage.Backup -> "Backup & Restore"
+                            SettingsPage.SetupWizard -> "Setup Wizard & Permissions"
+                            SettingsPage.Advanced -> stringResource(R.string.settings_advanced)
+                            SettingsPage.Language -> stringResource(R.string.settings_language)
+                            else -> stringResource(R.string.settings_about)
+                        }
+                        val summary = when (page) {
+                            SettingsPage.Productivity -> "Folders, dynamic apps, stacks & profiles"
+                            SettingsPage.Search -> "Keyboard auto-open, engine chips, calc & suggestions"
+                            SettingsPage.Gestures -> "Everything button actions, swipes & gestures"
+                            SettingsPage.Themes -> "Wallpapers, colors, fonts, icons & layout"
+                            SettingsPage.FeedScreen -> "Google News Feed, world regions & widget screen"
+                            SettingsPage.Backup -> "Export & import launcher settings with timestamp"
+                            SettingsPage.SetupWizard -> "Setup guide, feature tour & permissions setup"
+                            SettingsPage.Advanced -> stringResource(R.string.settings_advanced_summary)
+                            SettingsPage.Language -> appLanguageSummary(languageTag)
+                            else -> stringResource(R.string.settings_about_summary)
+                        }
+                        SettingsActionItem(
+                            title, summary, index, categories.size,
+                            tag = "settings_category_${page.name.lowercase()}",
+                            leading = {
+                                Box(
+                                    Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    LauncherIcon(symbol, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
+                            },
+                        ) { navigate(page) }
+                    }
+                }
+                if (showDefaultHomeBanner) {
+                    item(key = "direct_home_spacing") { Spacer(Modifier.height(24.dp)) }
+                    item(key = "direct_home") {
+                        SettingsActionItem(stringResource(R.string.settings_open_home), stringResource(R.string.settings_open_home_summary),
+                            0, 1, "settings_open_home", leading = { LauncherIcon(LauncherSymbol.Home) }, onClick = onOpenHome)
+                    }
                 }
             }
         }

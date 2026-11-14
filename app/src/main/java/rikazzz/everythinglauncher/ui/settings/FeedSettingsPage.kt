@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -48,10 +49,12 @@ internal fun FeedSettingsPage(
     var selectedTopicId by remember { mutableStateOf(customPrefs.feedDefaultTopic) }
 
     var showRegionDialog by remember { mutableStateOf(false) }
+    var showCustomRegionDialog by remember { mutableStateOf(false) }
+    var customRegionInput by remember { mutableStateOf("") }
     var showTopicDialog by remember { mutableStateOf(false) }
 
     val currentRegionName = remember(selectedRegionCode) {
-        AVAILABLE_REGIONS.firstOrNull { it.code == selectedRegionCode }?.name ?: "United States (English)"
+        AVAILABLE_REGIONS.firstOrNull { it.code.equals(selectedRegionCode, ignoreCase = true) }?.name ?: "Custom ($selectedRegionCode)"
     }
     val currentTopicName = remember(selectedTopicId) {
         NewsTopic.fromId(selectedTopicId).label
@@ -169,6 +172,30 @@ internal fun FeedSettingsPage(
             title = { Text(stringResource(R.string.feed_region)) },
             text = {
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 350.dp)) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showRegionDialog = false
+                                    customRegionInput = selectedRegionCode
+                                    showCustomRegionDialog = true
+                                }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = AVAILABLE_REGIONS.none { it.code.equals(selectedRegionCode, ignoreCase = true) },
+                                onClick = {
+                                    showRegionDialog = false
+                                    customRegionInput = selectedRegionCode
+                                    showCustomRegionDialog = true
+                                }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Custom Country / Language...", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                     items(AVAILABLE_REGIONS) { region ->
                         Row(
                             modifier = Modifier
@@ -182,7 +209,7 @@ internal fun FeedSettingsPage(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
-                                selected = selectedRegionCode == region.code,
+                                selected = selectedRegionCode.equals(region.code, ignoreCase = true),
                                 onClick = {
                                     selectedRegionCode = region.code
                                     customPrefs.feedRegion = region.code
@@ -197,6 +224,47 @@ internal fun FeedSettingsPage(
             },
             confirmButton = {
                 TextButton(onClick = { showRegionDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showCustomRegionDialog) {
+        AlertDialog(
+            onDismissRequest = { showCustomRegionDialog = false },
+            title = { Text("Custom Feed Region") },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    Text(
+                        "Enter country and language code format (e.g. US:en, GB:en, PK:ur, NL:nl, KE:en):",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    androidx.compose.material3.OutlinedTextField(
+                        value = customRegionInput,
+                        onValueChange = { customRegionInput = it },
+                        singleLine = true,
+                        placeholder = { Text("COUNTRY:lang (e.g. US:en)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val code = customRegionInput.trim()
+                    if (code.isNotEmpty()) {
+                        selectedRegionCode = code
+                        customPrefs.feedRegion = code
+                    }
+                    showCustomRegionDialog = false
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomRegionDialog = false }) {
                     Text(stringResource(android.R.string.cancel))
                 }
             }

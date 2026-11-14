@@ -39,11 +39,11 @@ internal fun SearchSettingsScreen(uiState: LauncherUiState, actions: LauncherAct
     var devSettingsEnabled by remember { mutableStateOf(customPrefs.searchDeviceSettingsEnabled) }
     var webSugEnabled by remember { mutableStateOf(customPrefs.searchWebSuggestionsEnabled) }
     var chipsEnabled by remember { mutableStateOf(customPrefs.searchEngineChipsEnabled) }
-    var customShortcutsEnabled by remember { mutableStateOf(customPrefs.searchCustomShortcutsEnabled) }
     var recentInstalledEnabled by remember { mutableStateOf(customPrefs.searchShowRecentlyInstalled) }
     var recentOpenedEnabled by remember { mutableStateOf(customPrefs.searchShowRecentlyOpened) }
     var freqOpenedEnabled by remember { mutableStateOf(customPrefs.searchShowFrequentlyOpened) }
     var searchAutoOpenKeyboard by remember { mutableStateOf(customPrefs.searchAutoOpenKeyboard) }
+    var drawerAutoOpenKeyboard by remember { mutableStateOf(customPrefs.drawerAutoOpenKeyboard) }
     var hiddenChips by remember { mutableStateOf(customPrefs.hiddenEngineChips) }
     var showChipsDialog by remember { mutableStateOf(false) }
 
@@ -80,14 +80,23 @@ internal fun SearchSettingsScreen(uiState: LauncherUiState, actions: LauncherAct
             }
 
             // Search Behavior
-            item { SettingsHeading("Search Behavior") }
+            item { SettingsHeading("Keyboard Behavior") }
             item {
                 SettingsToggleItem(
-                    "Auto-Open Keyboard", "Automatically open the keyboard when search opens",
-                    searchAutoOpenKeyboard, 0, 1, "search_auto_open_keyboard", enabled = settings.enabled
+                    "Auto-Open Keyboard for Search", "Automatically open the keyboard when search opens",
+                    searchAutoOpenKeyboard, 0, 2, "search_auto_open_keyboard", enabled = settings.enabled
                 ) { value ->
                     searchAutoOpenKeyboard = value
                     customPrefs.searchAutoOpenKeyboard = value
+                }
+            }
+            item {
+                SettingsToggleItem(
+                    "Auto-Open Keyboard for App List", "Automatically open keyboard when opening the full app list",
+                    drawerAutoOpenKeyboard, 1, 2, "drawer_auto_open_keyboard", enabled = settings.enabled
+                ) { value ->
+                    drawerAutoOpenKeyboard = value
+                    customPrefs.drawerAutoOpenKeyboard = value
                 }
             }
 
@@ -95,7 +104,7 @@ internal fun SearchSettingsScreen(uiState: LauncherUiState, actions: LauncherAct
             item { SettingsHeading("Search Content & Sources") }
             item {
                 SettingsToggleItem(stringResource(R.string.search_contacts), "Search contacts with direct Call and SMS actions",
-                    settings.contacts && hasAccess, 0, 6, "search_contacts", enabled = settings.enabled) { value ->
+                    settings.contacts && hasAccess, 0, 5, "search_contacts", enabled = settings.enabled) { value ->
                     if (!value || contacts.hasAccess()) update { it.copy(contacts = value) }
                     else if (permissionRequested && (context as? Activity)?.let {
                         ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.READ_CONTACTS)
@@ -109,32 +118,25 @@ internal fun SearchSettingsScreen(uiState: LauncherUiState, actions: LauncherAct
             }
             item {
                 SettingsToggleItem("Device Settings Search", "Search and open system settings (Wi-Fi, Bluetooth, Battery, etc.)",
-                    devSettingsEnabled, 1, 6, "search_dev_settings", enabled = settings.enabled) {
+                    devSettingsEnabled, 1, 5, "search_dev_settings", enabled = settings.enabled) {
                     devSettingsEnabled = it
                     customPrefs.searchDeviceSettingsEnabled = it
                 }
             }
             item {
                 SettingsToggleItem("Math Calculator", "Evaluate math expressions directly in search results",
-                    calcEnabled, 2, 6, "search_calc", enabled = settings.enabled) {
+                    calcEnabled, 2, 5, "search_calc", enabled = settings.enabled) {
                     calcEnabled = it
                     customPrefs.searchCalculatorEnabled = it
                 }
             }
             item {
-                SettingsToggleItem("Custom Activity Shortcuts", "Include user-created custom activity shortcuts in search",
-                    customShortcutsEnabled, 3, 6, "search_custom_shortcuts", enabled = settings.enabled) {
-                    customShortcutsEnabled = it
-                    customPrefs.searchCustomShortcutsEnabled = it
-                }
-            }
-            item {
                 SettingsToggleItem(stringResource(R.string.search_hidden_apps), stringResource(R.string.search_hidden_apps_summary),
-                    settings.hiddenApps, 4, 6, "search_hidden_apps", enabled = settings.enabled) { value -> update { it.copy(hiddenApps = value) } }
+                    settings.hiddenApps, 3, 5, "search_hidden_apps", enabled = settings.enabled) { value -> update { it.copy(hiddenApps = value) } }
             }
             item {
                 SettingsToggleItem(stringResource(R.string.search_fuzzy), stringResource(R.string.search_fuzzy_summary),
-                    settings.fuzzy, 5, 6, "search_fuzzy", enabled = settings.enabled) { value -> update { it.copy(fuzzy = value) } }
+                    settings.fuzzy, 4, 5, "search_fuzzy", enabled = settings.enabled) { value -> update { it.copy(fuzzy = value) } }
             }
 
             // 2. App Suggestions in Search

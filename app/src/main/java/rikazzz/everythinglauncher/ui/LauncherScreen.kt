@@ -808,13 +808,13 @@ internal fun LauncherScreen(
         }
     }
     val haptics = rememberLauncherHaptics(uiState.settings.allowHapticFeedback)
-    val searching = overlay == LauncherOverlay.Search
+    val searching = overlay is LauncherOverlay.Search
     val searchAlpha by animateFloatAsState(if (searching) 1f else 0f,
         if (instantButtonEntrance || searchTransition != null) androidx.compose.animation.core.snap() else tween(210), label = "searchFade")
     LaunchedEffect(searching, drawerOpen) { if (!searching && !drawerOpen) instantButtonEntrance = false }
     val isSettings = overlay == LauncherOverlay.Settings || overlay is LauncherOverlay.FolderSettings ||
         overlay is LauncherOverlay.SettingsDestination || overlay is LauncherOverlay.IconDesigner
-    val fullScreen = isSettings || overlay == LauncherOverlay.Search || overlay is LauncherOverlay.Homepage ||
+    val fullScreen = isSettings || overlay is LauncherOverlay.Search || overlay is LauncherOverlay.Homepage ||
         overlay is LauncherOverlay.IconDesigner || overlay is LauncherOverlay.EditPopup
     val privateAppEditing = when (val current = overlay) {
         is LauncherOverlay.AppDetails -> current.app.isPrivateSpace
@@ -905,7 +905,7 @@ internal fun LauncherScreen(
     LaunchedEffect(model.letters) {
         if (selectedLetter !in model.letters) selectedLetter = null
     }
-    BackHandler(enabled = buttonTransition == null && overlay != LauncherOverlay.Search && !(overlay == null && drawerOpen)) {
+    BackHandler(enabled = buttonTransition == null && overlay !is LauncherOverlay.Search && !(overlay == null && drawerOpen)) {
         when {
             overlay != null -> overlay = (overlay as? LauncherOverlay.AppDetails)?.returnTo
             editingHome -> editingHome = false
@@ -915,8 +915,8 @@ internal fun LauncherScreen(
             else -> drawerOpen = false
         }
     }
-    PredictiveBackHandler(enabled = buttonTransition == null && (overlay == LauncherOverlay.Search || (overlay == null && drawerOpen))) { events ->
-        val fromSearch = overlay == LauncherOverlay.Search
+    PredictiveBackHandler(enabled = buttonTransition == null && (overlay is LauncherOverlay.Search || (overlay == null && drawerOpen))) { events ->
+        val fromSearch = overlay is LauncherOverlay.Search
         try {
             events.collect { backProgress.snapTo(it.progress) }
             backProgress.animateTo(1f, tween(180))
@@ -1118,7 +1118,7 @@ internal fun LauncherScreen(
     // Only a real button gesture morphs the button into search/the app list.
     fun performGestureAction(target: GraceButtonTarget, origin: GraceButtonOrigin, fromButton: Boolean = true) {
         if (!target.active || buttonTransition != null || systemActionAccess) return
-        if (target.action == GraceButtonAction.AppList && drawerOpen) return
+        if (target.action == GraceButtonAction.AppList && (overlay is LauncherOverlay.Search && (overlay as LauncherOverlay.Search).isAppList)) return
         val buttonSettings = uiState.settings.graceButton
         instantButtonEntrance = fromButton && !buttonSettings.animationsEnabled &&
             target.action in listOf(GraceButtonAction.Search, GraceButtonAction.AppList)
@@ -1127,7 +1127,9 @@ internal fun LauncherScreen(
                 searchQuery.edit { replace(0, length, "") }
                 if (fromButton && buttonSettings.animationsEnabled && uiState.settings.search.enabled)
                     buttonTransition = GraceButtonTransition(target.action, origin, durationMillis = buttonSettings.searchAnimationDurationMs)
-                overlay = LauncherOverlay.search(uiState.settings.search.enabled)
+                drawerOpen = false
+                selectedLetter = null
+                overlay = LauncherOverlay.search(uiState.settings.search.enabled, isAppList = false)
             }
             GraceButtonAction.Settings -> {
                 try {
@@ -1151,13 +1153,12 @@ internal fun LauncherScreen(
             }
             GraceButtonAction.AppList -> {
                 editingWidgetScreen = false
-                pageScope.launch { homePager.scrollToPage(0) }
+                searchQuery.edit { replace(0, length, "") }
                 if (fromButton && buttonSettings.animationsEnabled)
                     buttonTransition = GraceButtonTransition(target.action, origin, durationMillis = buttonSettings.appListAnimationDurationMs)
                 selectedLetter = null
-                overlay = null
-                drawerState.requestScrollToItem(0)
-                drawerOpen = true
+                drawerOpen = false
+                overlay = LauncherOverlay.search(enabled = true, isAppList = true)
             }
             GraceButtonAction.WidgetScreen -> {
                 if (uiState.settings.widgetScreen.enabled) {
@@ -1241,9 +1242,9 @@ internal fun LauncherScreen(
                  customPrefs = customPrefs,
                  statusBarHeight = statusBarHeight,
                  bottomInset = bottomInset,
-                 onOpenSearch = { overlay = LauncherOverlay.Search },
+                 onOpenSearch = { overlay = LauncherOverlay.Search() },
                  onVoiceSearch = { query ->
-                     overlay = LauncherOverlay.Search
+                     overlay = LauncherOverlay.Search()
                      searchQuery.edit { replace(0, length, query) }
                  },
                  onOpenSettings = { overlay = LauncherOverlay.SettingsDestination(SettingsPage.FeedScreen.name) },

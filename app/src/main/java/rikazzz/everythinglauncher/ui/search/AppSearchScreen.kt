@@ -59,7 +59,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import rikazzz.everythinglauncher.R
-import rikazzz.everythinglauncher.customshortcuts.ActivityLauncherHelper
 import rikazzz.everythinglauncher.data.*
 import rikazzz.everythinglauncher.platform.SearchLauncher
 import rikazzz.everythinglauncher.quicksearch.CalculatorUtils
@@ -69,6 +68,7 @@ import rikazzz.everythinglauncher.quicksearch.QuickSearchEngineRegistry
 import rikazzz.everythinglauncher.quicksearch.WebSuggestionsUtils
 import rikazzz.everythinglauncher.ui.LauncherActions
 import rikazzz.everythinglauncher.ui.LauncherUiState
+import rikazzz.everythinglauncher.ui.components.AlphabetRail
 import rikazzz.everythinglauncher.ui.components.AppIcon
 import rikazzz.everythinglauncher.ui.components.AppListSectionHeader
 import rikazzz.everythinglauncher.ui.components.LauncherLayout
@@ -89,7 +89,6 @@ private sealed interface SearchResult {
         override val key = if (section.isEmpty()) "app:" + app.key else "app:$section:" + app.key
     }
     data class Shortcut(val app: LauncherApp) : SearchResult { override val key = "shortcut:" + app.key }
-    data class CustomShortcut(val shortcut: CustomActivityShortcut) : SearchResult { override val key = "custom_shortcut:" + shortcut.id }
     data class DeviceSetting(val item: DeviceSettingItem) : SearchResult { override val key = "setting:" + item.id }
     data class Calculator(val expression: String, val result: String) : SearchResult { override val key = "calc:" + expression }
     data class WebSuggestion(val suggestion: String, val index: Int = 0) : SearchResult { override val key = "web_sug:${index}_$suggestion" }
@@ -110,6 +109,7 @@ internal fun AppSearchScreen(
     onSettings: () -> Unit = {},
     queryState: TextFieldState = rememberTextFieldState(),
     transition: GraceButtonTransition? = null,
+    isAppList: Boolean = false,
 ) {
     val settings = uiState.settings.search
     val query = queryState.text.toString().trim()
@@ -117,9 +117,10 @@ internal fun AppSearchScreen(
     val customPrefs = remember(context) { LauncherCustomPreferences(context) }
     val deviceSettingsRepo = remember(context) { DeviceSettingsRepository(context) }
     val keyboard = LocalSoftwareKeyboardController.current
-    var requestKeyboard by remember { mutableStateOf(transition == null && customPrefs.searchAutoOpenKeyboard) }
-    LaunchedEffect(transition, customPrefs.searchAutoOpenKeyboard) {
-        if (!customPrefs.searchAutoOpenKeyboard) {
+    val autoOpenKeyboard = if (isAppList) customPrefs.drawerAutoOpenKeyboard else customPrefs.searchAutoOpenKeyboard
+    var requestKeyboard by remember { mutableStateOf(transition == null && autoOpenKeyboard) }
+    LaunchedEffect(transition, autoOpenKeyboard) {
+        if (!autoOpenKeyboard) {
             requestKeyboard = false
             return@LaunchedEffect
         }
@@ -182,56 +183,81 @@ internal fun AppSearchScreen(
         uiState.allApps.filter { it.folderId == null && (settings.hiddenApps || it.key !in uiState.effectiveHiddenAppKeys) }
     }
     val names = rememberAppSearchNames(apps)
-    val customShortcuts = remember(customPrefs) { customPrefs.getCustomShortcuts() }
 
     val results: List<SearchResult> = remember(
-        apps, names, contacts, query, settings, hasContactsAccess, uiState.shortcutApps, customShortcuts, webSuggestions,
+        apps, names, contacts, query, settings, hasContactsAccess, uiState.shortcutApps, webSuggestions,
         customPrefs.searchShowRecentlyOpened, customPrefs.searchShowFrequentlyOpened, customPrefs.searchShowRecentlyInstalled,
-        uiState.recentlyInstalledApps, uiState.usage.openCounts
+        uiState.recentlyInstalledApps, uiState.usage.openCounts, isAppList
     ) {
         if (query.isEmpty()) {
-            if (settings.suggestions) {
-                val byKey = apps.associateBy { it.key }
-                val shownKeys = mutableSetOf<String>()
+            if (isAppList) {
+                val grouped = apps.sortedWith(LauncherAppOrder).groupBy(LauncherApp::section)
+                val appLetters = LauncherAlphabet.filter { it != "#" && it in grouped } +
+                    grouped.keys.filter { it !in LauncherAlphabet }.sorted() +
+                    if ("#" in grouped) listOf("#") else emptyList()
                 buildList {
-                    // 1. Recently opened apps
-                    if (customPrefs.searchShowRecentlyOpened) {
-                        val recent = settings.recentAppKeys.mapNotNull(byKey::get).distinctBy { it.key }.take(5)
-                        if (recent.isNotEmpty()) {
-                            add(SearchResult.SectionHeader("Recently Opened"))
-                            recent.forEach {
-                                shownKeys.add(it.key)
-                                add(SearchResult.App(it, "recent"))
-                            }
-                        }
-                    }
-                    // 2. Frequently opened apps (exclude already shown in Recently Opened)
-                    if (customPrefs.searchShowFrequentlyOpened) {
-                        val freq = apps.filter { it.user == null && (uiState.usage.openCounts[it.packageName] ?: 0) > 0 && it.key !in shownKeys }
-                            .sortedWith(compareByDescending<LauncherApp> { uiState.usage.openCounts[it.packageName] ?: 0 }.then(LauncherAppOrder))
-                            .distinctBy { it.packageName }
-                            .take(5)
-                        if (freq.isNotEmpty()) {
-                            add(SearchResult.SectionHeader("Frequently Opened"))
-                            freq.forEach {
-                                shownKeys.add(it.key)
-                                add(SearchResult.App(it, "freq"))
-                            }
-                        }
-                    }
-                    // 3. Recently installed apps (exclude already shown)
-                    if (customPrefs.searchShowRecentlyInstalled) {
-                        val installed = uiState.recentlyInstalledApps.filter { it.key !in shownKeys }.distinctBy { it.key }.take(5)
-                        if (installed.isNotEmpty()) {
-                            add(SearchResult.SectionHeader("Recently Installed"))
-                            installed.forEach {
-                                shownKeys.add(it.key)
-                                add(SearchResult.App(it, "installed"))
-                            }
+                    appLetters.forEach { letter ->
+                        add(SearchResult.SectionHeader(letter))
+                        grouped.getValue(letter).forEach { app ->
+                            add(SearchResult.App(app, letter))
                         }
                     }
                 }
-            } else emptyList()
+            } else {
+                val byKey = apps.associateBy { it.key }
+                val shownKeys = mutableSetOf<String>()
+                buildList {
+                    if (settings.suggestions) {
+                        // 1. Recently opened apps
+                        if (customPrefs.searchShowRecentlyOpened) {
+                            val recent = settings.recentAppKeys.mapNotNull(byKey::get).distinctBy { it.key }.take(5)
+                            if (recent.isNotEmpty()) {
+                                add(SearchResult.SectionHeader("Recently Opened"))
+                                recent.forEach {
+                                    shownKeys.add(it.key)
+                                    add(SearchResult.App(it, "recent"))
+                                }
+                            }
+                        }
+                        // 2. Frequently opened apps (exclude already shown in Recently Opened)
+                        if (customPrefs.searchShowFrequentlyOpened) {
+                            val freq = apps.filter { it.user == null && (uiState.usage.openCounts[it.packageName] ?: 0) > 0 && it.key !in shownKeys }
+                                .sortedWith(compareByDescending<LauncherApp> { uiState.usage.openCounts[it.packageName] ?: 0 }.then(LauncherAppOrder))
+                                .distinctBy { it.packageName }
+                                .take(5)
+                            if (freq.isNotEmpty()) {
+                                add(SearchResult.SectionHeader("Frequently Opened"))
+                                freq.forEach {
+                                    shownKeys.add(it.key)
+                                    add(SearchResult.App(it, "freq"))
+                                }
+                            }
+                        }
+                        // 3. Recently installed apps (exclude already shown)
+                        if (customPrefs.searchShowRecentlyInstalled) {
+                            val installed = uiState.recentlyInstalledApps.filter { it.key !in shownKeys }.distinctBy { it.key }.take(5)
+                            if (installed.isNotEmpty()) {
+                                add(SearchResult.SectionHeader("Recently Installed"))
+                                installed.forEach {
+                                    shownKeys.add(it.key)
+                                    add(SearchResult.App(it, "installed"))
+                                }
+                            }
+                        }
+                    }
+                    // Also include the full alphabetical list below dynamic sections
+                    val grouped = apps.sortedWith(LauncherAppOrder).groupBy(LauncherApp::section)
+                    val appLetters = LauncherAlphabet.filter { it != "#" && it in grouped } +
+                        grouped.keys.filter { it !in LauncherAlphabet }.sorted() +
+                        if ("#" in grouped) listOf("#") else emptyList()
+                    appLetters.forEach { letter ->
+                        add(SearchResult.SectionHeader(letter))
+                        grouped.getValue(letter).forEach { app ->
+                            add(SearchResult.App(app, letter))
+                        }
+                    }
+                }
+            }
         } else {
             val term = SearchQuery(query, settings.fuzzy)
 
@@ -245,14 +271,7 @@ internal fun AppSearchScreen(
                 deviceSettingsRepo.searchSettings(query).distinctBy { it.id }.take(3).map { SearchResult.DeviceSetting(it) }
             } else emptyList()
 
-            // 3. Matching custom activity shortcuts
-            val matchedCustomShortcuts = if (customPrefs.searchCustomShortcutsEnabled) {
-                customShortcuts.filter {
-                    it.showInSearch && (it.name.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true))
-                }.distinctBy { it.id }.take(3).map { SearchResult.CustomShortcut(it) }
-            } else emptyList()
-
-            // 4. Apps and app shortcuts
+            // 3. Apps and app shortcuts
             val matchedApps = apps.mapNotNull { app ->
                 val score = names?.get(app.key)?.score(term) ?: return@mapNotNull null
                 score to app
@@ -264,7 +283,7 @@ internal fun AppSearchScreen(
                 it.label.contains(query, ignoreCase = true)
             }.distinctBy { it.key }.take(3).map { SearchResult.Shortcut(it) }
 
-            // 5. Contacts
+            // 4. Contacts
             val matchedContacts = if (settings.contacts && hasContactsAccess) contacts.mapNotNull { contact ->
                 contact.score(term)?.let { it to contact }
             }.sortedBy { it.first }.distinctBy { it.second.id }.take(10) else emptyList()
@@ -276,7 +295,6 @@ internal fun AppSearchScreen(
                     add(SearchResult.Calculator(query, calcResult))
                 }
                 matchedSettings.forEach { add(it) }
-                matchedCustomShortcuts.forEach { add(it) }
                 matchedApps.forEach { add(SearchResult.App(it.second)) }
                 matchedShortcuts.forEach { add(it) }
                 matchedContacts.forEach { add(SearchResult.Contact(it.second)) }
@@ -285,6 +303,17 @@ internal fun AppSearchScreen(
             }
         }
     }
+
+    val sectionLetterIndices = remember(results) {
+        results.mapIndexedNotNull { index, res ->
+            (res as? SearchResult.SectionHeader)?.let {
+                if (it.title.length <= 2 || it.title == "#") it.title to index else null
+            }
+        }.toMap()
+    }
+    val letters = remember(sectionLetterIndices) { sectionLetterIndices.keys.toList() }
+    var selectedLetter by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     fun open(result: SearchResult, bounds: Rect? = null) {
         keyboard?.hide()
@@ -297,10 +326,6 @@ internal fun AppSearchScreen(
                 onDismiss()
                 val launch = actions.launchAppAt
                 if (launch != null && bounds != null) launch(result.app, bounds) else onLaunch(result.app)
-            }
-            is SearchResult.CustomShortcut -> {
-                onDismiss()
-                ActivityLauncherHelper.launchShortcut(context, result.shortcut)
             }
             is SearchResult.DeviceSetting -> {
                 onDismiss()
@@ -347,13 +372,13 @@ internal fun AppSearchScreen(
     val bottomInset = WindowInsets.safeDrawing.exclude(WindowInsets.ime).asPaddingValues().calculateBottomPadding()
     val backDistance = with(density) { 30.dp.toPx() } * if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1 else -1
 
-    Box(modifier.fillMaxSize().testTag("app_search").graphicsLayer {
+    BoxWithConstraints(modifier.fillMaxSize().testTag("app_search").graphicsLayer {
         alpha = (if (transition != null) 1f else enterAlpha) * (1f - backProgress)
         translationX = backDistance * backProgress
     }.then(if (transition != null) Modifier.clearAndSetSemantics {} else Modifier)
         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
         .padding(top = stableStatusBarInset())
-        .imePadding().padding(horizontal = 16.dp)) {
+        .imePadding()) {
 
         LazyColumn(
             Modifier.fillMaxSize().padding(top = listTop)
@@ -364,7 +389,12 @@ internal fun AppSearchScreen(
                 .graphicsLayer { alpha = transition?.searchResultsAlpha ?: 1f },
             state = list,
             overscrollEffect = null,
-            contentPadding = PaddingValues(top = searchBarHeight / 2 + 16.dp, bottom = 64.dp + bottomInset)
+            contentPadding = PaddingValues(
+                top = searchBarHeight / 2 + 16.dp,
+                bottom = 64.dp + bottomInset,
+                start = 16.dp,
+                end = if (query.isEmpty() && letters.isNotEmpty()) 28.dp else 16.dp
+            )
         ) {
             if (query.isNotEmpty() && names != null && results.isEmpty()) item {
                 Text(stringResource(R.string.search_no_results), Modifier.padding(20.dp), color = appearance.text)
@@ -407,21 +437,6 @@ internal fun AppSearchScreen(
                             Surface(modifier = iconModifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(painterResource(result.item.iconResId), contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                                }
-                            }
-                        }
-                    }
-                    is SearchResult.CustomShortcut -> {
-                        SearchResultRow(
-                            label = result.shortcut.name,
-                            key = result.key,
-                            first = index == 0,
-                            onClick = { open(result, it) },
-                            onLongClick = null
-                        ) { iconModifier ->
-                            Surface(modifier = iconModifier.size(40.dp), shape = CircleShape, color = MaterialTheme.colorScheme.tertiaryContainer) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(painterResource(R.drawable.ms_steppers), contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onTertiaryContainer)
                                 }
                             }
                         }
@@ -581,9 +596,40 @@ internal fun AppSearchScreen(
             }
         }
 
+        if (query.isEmpty() && letters.isNotEmpty()) {
+            val alphabet = uiState.settings.homeLayout.alphabet
+            val railLayout = remember(alphabet, letters.size, maxHeight) {
+                alphabet.layout(maxHeight.value, letters.size)
+            }
+            AlphabetRail(
+                letters = letters,
+                selectedLetter = selectedLetter,
+                height = railLayout.heightDp.dp,
+                topOffset = railLayout.topDp.dp,
+                touchHeight = maxHeight,
+                onLetterSelected = { letter ->
+                    selectedLetter = letter
+                    letter?.let { l ->
+                        sectionLetterIndices[l]?.let { targetIdx ->
+                            coroutineScope.launch {
+                                list.scrollToItem(targetIdx)
+                            }
+                        }
+                    }
+                },
+                onScrubFinished = {
+                    selectedLetter = null
+                },
+                alphabet = alphabet,
+                includeHome = false,
+                onWallpaper = false,
+                modifier = Modifier.align(Alignment.TopEnd)
+            )
+        }
+
         LauncherSearchBar(
             queryState, stringResource(R.string.settings_search), "app_search_query",
-            modifier = Modifier.padding(top = 12.dp).onSizeChanged { searchBarHeight = with(density) { it.height.toDp() } }
+            modifier = Modifier.padding(top = 12.dp, start = 16.dp, end = 16.dp).onSizeChanged { searchBarHeight = with(density) { it.height.toDp() } }
                 .onGloballyPositioned { transition?.searchBounds = it.boundsInRoot() }
                 .graphicsLayer { alpha = transition?.searchBarAlpha ?: 1f },
             autoFocus = requestKeyboard,
