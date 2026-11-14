@@ -597,7 +597,7 @@ internal fun AppSearchScreen(
         }
 
         if (query.isEmpty() && letters.isNotEmpty()) {
-            val alphabet = uiState.settings.homeLayout.alphabet
+            val alphabet = uiState.settings.listAppearance.alphabet
             val railLayout = remember(alphabet, letters.size, maxHeight) {
                 alphabet.layout(maxHeight.value, letters.size)
             }
