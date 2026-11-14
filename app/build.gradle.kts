@@ -15,8 +15,8 @@ android {
         applicationId = "rikazzz.everythinglauncher"
         minSdk = 28
         targetSdk = 37
-        versionCode = 15
-        versionName = "1.2.3"
+        versionCode = 1
+        versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resourceConfigurations += listOf(

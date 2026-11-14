@@ -1,5 +1,9 @@
-First release of Grace Launcher.
-• Favorite apps and alphabetical app browsing
-• Calendar agenda, notifications and music controls
-• Material You colors, icon packs and folders
-• Optional weather integration with Breezy Weather
+Everything Launcher 1.0 - Initial Release
+• Fast universal spotlight search with math calculator and system settings shortcuts
+• Integrated Google News RSS feed screen with worldwide editions and topic browsing
+• Everything action button with custom multi-gesture controls
+• Auto-centering bottom dock and app stacks
+• Direct call and SMS actions for contacts in search
+• Complete settings and layout backup & restore
+• Deep personalization: Icon Designer, custom clock widget, dynamic Material You colors
+• Fully privacy-first: no ads, no trackers, no telemetry
