@@ -113,7 +113,6 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import rikazzz.everythinglauncher.data.FolderPlacement
-import rikazzz.everythinglauncher.data.LauncherFolder
 import rikazzz.everythinglauncher.data.PopupItem
 import rikazzz.everythinglauncher.data.nextVisibleEvent
 import rikazzz.everythinglauncher.data.media.MediaCommand
