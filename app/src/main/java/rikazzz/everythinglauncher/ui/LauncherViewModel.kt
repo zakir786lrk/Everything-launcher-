@@ -223,6 +223,7 @@ data class LauncherUiState(
     fun popupItems(owner: LauncherApp, defaults: List<LauncherApp>): List<PopupItem> {
         if (owner.folderId == RecentlyInstalledFolderId) return recentlyInstalledApps.map { PopupItem(it.key) }
         if (owner.folderId == WorkProfileFolderId) return workProfileApps.map { PopupItem(it.key) }
+        if (owner.folderId == "favorites_overflow") return defaults.map { PopupItem(it.key) }
         val items = popups[owner.key].takeUnless { owner.folderId == PrivateSpaceFolderId }
             ?: (if (owner.folderId == PrivateSpaceFolderId) privateSpaceApps.map { it.key }
                 else if (owner.folderId == null) defaults.map { it.key }

@@ -8,8 +8,9 @@ import org.json.JSONObject
 data class CustomActivityShortcut(
     val id: String,
     val name: String,
-    val packageName: String,
-    val activityName: String,
+    val packageName: String = "",
+    val activityName: String = "",
+    val action: String? = null,
     val showInSearch: Boolean = true,
     val showInDrawer: Boolean = true,
     val assignToQuickTile: Boolean = false
@@ -19,6 +20,7 @@ data class CustomActivityShortcut(
         put("name", name)
         put("packageName", packageName)
         put("activityName", activityName)
+        action?.let { put("action", it) }
         put("showInSearch", showInSearch)
         put("showInDrawer", showInDrawer)
         put("assignToQuickTile", assignToQuickTile)
@@ -30,9 +32,97 @@ data class CustomActivityShortcut(
             name = json.optString("name", "Custom Activity"),
             packageName = json.optString("packageName", ""),
             activityName = json.optString("activityName", ""),
+            action = if (json.has("action") && !json.isNull("action")) json.optString("action").takeIf { it.isNotBlank() } else null,
             showInSearch = json.optBoolean("showInSearch", true),
             showInDrawer = json.optBoolean("showInDrawer", true),
             assignToQuickTile = json.optBoolean("assignToQuickTile", false)
+        )
+
+        val defaultPreloadedShortcuts: List<CustomActivityShortcut> = listOf(
+            CustomActivityShortcut(
+                id = "preloaded_wifi",
+                name = "Wi-Fi Settings",
+                action = android.provider.Settings.ACTION_WIFI_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_bluetooth",
+                name = "Bluetooth Settings",
+                action = android.provider.Settings.ACTION_BLUETOOTH_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_airplane",
+                name = "Airplane Mode",
+                action = android.provider.Settings.ACTION_AIRPLANE_MODE_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_hotspot",
+                name = "Hotspot & Tethering",
+                action = android.provider.Settings.ACTION_WIRELESS_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_battery",
+                name = "Battery & Power",
+                action = android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_display",
+                name = "Display & Brightness",
+                action = android.provider.Settings.ACTION_DISPLAY_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_sound",
+                name = "Sound & Vibration",
+                action = android.provider.Settings.ACTION_SOUND_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_developer",
+                name = "Developer Options",
+                action = android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_manage_apps",
+                name = "Manage All Apps",
+                action = android.provider.Settings.ACTION_MANAGE_ALL_APPLICATIONS_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_storage",
+                name = "Storage Settings",
+                action = android.provider.Settings.ACTION_INTERNAL_STORAGE_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_notifications",
+                name = "App Notification Settings",
+                action = "android.settings.ALL_APPS_NOTIFICATION_SETTINGS",
+                showInSearch = true,
+                showInDrawer = true
+            ),
+            CustomActivityShortcut(
+                id = "preloaded_datetime",
+                name = "Date & Time",
+                action = android.provider.Settings.ACTION_DATE_SETTINGS,
+                showInSearch = true,
+                showInDrawer = true
+            )
         )
     }
 }
@@ -166,7 +256,11 @@ class LauncherCustomPreferences(context: Context) {
     // Custom Activity Shortcuts list (with in-memory cache)
     fun getCustomShortcuts(): List<CustomActivityShortcut> {
         cachedShortcuts?.let { return it }
-        val raw = prefs.getString("custom_activity_shortcuts", null) ?: return emptyList()
+        val raw = prefs.getString("custom_activity_shortcuts", null)
+        if (raw == null) {
+            cachedShortcuts = CustomActivityShortcut.defaultPreloadedShortcuts
+            return CustomActivityShortcut.defaultPreloadedShortcuts
+        }
         return try {
             val array = JSONArray(raw)
             val list = mutableListOf<CustomActivityShortcut>()
@@ -176,7 +270,7 @@ class LauncherCustomPreferences(context: Context) {
             cachedShortcuts = list
             list
         } catch (e: Exception) {
-            emptyList()
+            CustomActivityShortcut.defaultPreloadedShortcuts
         }
     }
 

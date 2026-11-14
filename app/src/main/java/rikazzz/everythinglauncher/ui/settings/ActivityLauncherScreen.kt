@@ -154,6 +154,18 @@ fun ActivityLauncherScreen(
                         Spacer(Modifier.width(8.dp))
                         Text("Add New Custom Activity Shortcut")
                     }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            prefs.saveCustomShortcuts(CustomActivityShortcut.defaultPreloadedShortcuts)
+                            refreshShortcuts()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(painterResource(R.drawable.ms_steppers), contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Restore Preloaded Quick Settings")
+                    }
                 }
 
                 if (shortcuts.isEmpty()) {
@@ -375,8 +387,13 @@ private fun ShortcutManageCard(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(shortcut.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    val detail = when {
+                        !shortcut.action.isNullOrBlank() -> shortcut.action
+                        shortcut.packageName.isNotBlank() -> "${shortcut.packageName}/${shortcut.activityName.substringAfterLast('.')}"
+                        else -> "Quick Activity"
+                    }
                     Text(
-                        "${shortcut.packageName}/${shortcut.activityName.substringAfterLast('.')}",
+                        detail,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

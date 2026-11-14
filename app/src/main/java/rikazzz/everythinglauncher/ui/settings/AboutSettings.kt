@@ -56,15 +56,26 @@ internal fun AboutSettings(onBack: () -> Unit, navigate: (SettingsPage) -> Unit)
             }
             item { SettingsHeading(stringResource(R.string.settings_about_app)) }
             item {
+                val context = LocalContext.current
+                val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+                SettingsActionItem(
+                    "Setup Guide & Permissions", "Review initial setup, features, and permissions guide",
+                    0, 3, "settings_open_setup_guide", leading = { LauncherIcon(LauncherSymbol.Star) },
+                ) {
+                    customPrefs.firstTimeSetupDone = false
+                    onBack()
+                }
+            }
+            item {
                 SettingsActionItem(
                     stringResource(R.string.settings_changelog), stringResource(R.string.settings_changelog_summary),
-                    0, 2, "settings_open_changelog", leading = { LauncherIcon(LauncherSymbol.Hourglass) },
+                    1, 3, "settings_open_changelog", leading = { LauncherIcon(LauncherSymbol.Hourglass) },
                 ) { navigate(SettingsPage.Changelog) }
             }
             item {
                 SettingsActionItem(
                     stringResource(R.string.settings_licenses), stringResource(R.string.settings_licenses_summary),
-                    1, 2, "settings_open_licenses", leading = { LauncherIcon(LauncherSymbol.Info) },
+                    2, 3, "settings_open_licenses", leading = { LauncherIcon(LauncherSymbol.Info) },
                 ) { navigate(SettingsPage.Licenses) }
             }
         }

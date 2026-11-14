@@ -67,6 +67,9 @@ import rikazzz.everythinglauncher.ui.theme.LocalLauncherTypography
 import rikazzz.everythinglauncher.ui.theme.SystemLauncherTypography
 import java.util.UUID
 import kotlinx.coroutines.launch
+import android.widget.Toast
+import rikazzz.everythinglauncher.data.DynamicAppsHelper
+import rikazzz.everythinglauncher.data.DynamicAppsDialog
 
 @Composable
 internal fun ProductivitySettings(
@@ -81,7 +84,6 @@ internal fun ProductivitySettings(
     var overflowMode by remember { mutableStateOf(customPrefs.favoritesOverflowMode) }
     var maxVisibleCount by remember { mutableIntStateOf(customPrefs.favoritesMaxVisibleCount) }
     var overflowFolderName by remember { mutableStateOf(customPrefs.favoritesOverflowFolderName) }
-    var drawerAutoOpenKeyboard by remember { mutableStateOf(customPrefs.drawerAutoOpenKeyboard) }
     var swipeAppRight by remember { mutableStateOf(customPrefs.swipeAppRightToOpenPopup) }
     SettingsScaffold(stringResource(R.string.settings_productivity), "settings_productivity", onBack) { padding ->
         SettingsList(padding) {
@@ -172,23 +174,10 @@ internal fun ProductivitySettings(
                 }
             }
             item {
-                val totalScreenItems = if (overflowMode == "folder") 8 else 7
+                val totalScreenItems = if (overflowMode == "folder") 7 else 6
                 val idx = if (overflowMode == "folder") 3 else 2
                 SettingsActionItem(stringResource(R.string.settings_folder_app_list), null, idx, totalScreenItems, "settings_app_list",
                     leading = { LauncherIcon(LauncherSymbol.Apps) }) { navigate(SettingsPage.AppList) }
-            }
-            item {
-                val totalScreenItems = if (overflowMode == "folder") 8 else 7
-                val idx = if (overflowMode == "folder") 4 else 3
-                SettingsToggleItem(
-                    "Auto-Open Keyboard in Drawer",
-                    "Automatically show keyboard and open search when opening the app drawer",
-                    drawerAutoOpenKeyboard, idx, totalScreenItems, "drawer_auto_keyboard",
-                    leading = { LauncherIcon(LauncherSymbol.Search) }
-                ) { checked ->
-                    drawerAutoOpenKeyboard = checked
-                    customPrefs.drawerAutoOpenKeyboard = checked
-                }
             }
             item {
                 SettingsActionItem(stringResource(R.string.widget_screen_title), null, 3, 6, "settings_widget_screen",
@@ -463,24 +452,34 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
     var rename by rememberSaveable(folder.id) { mutableStateOf(false) }
     var placement by rememberSaveable(folder.id) { mutableStateOf(false) }
     var confirmDelete by rememberSaveable(folder.id) { mutableStateOf(false) }
+    var showDynamicDialog by rememberSaveable(folder.id) { mutableStateOf(false) }
     PopupEditorScreen(app, uiState, actions, onBack, header = {
         Column(Modifier.padding(top = 16.dp)) {
-            SettingsActionItem(folder.name, stringResource(if (folder.isAppStack) R.string.app_stack_name else R.string.settings_folder_name), 0, 3, "folder_name",
+            val totalItems = if (folder.isAppStack) (if (isFixedDock) 6 else 5) else 4
+            SettingsActionItem(folder.name, stringResource(if (folder.isAppStack) R.string.app_stack_name else R.string.settings_folder_name), 0, totalItems, "folder_name",
                 leading = { if (folder.isAppStack) LauncherIcon(LauncherSymbol.Apps)
                     else AppIcon(app, Modifier.clickable(onClickLabel = stringResource(R.string.icon_designer_title)) { onEditIcon(app) }, size = 36.dp) }) { rename = true }
             Spacer(Modifier.height(ListItemDefaults.SegmentedGap))
             SettingsActionItem(stringResource(if (folder.isAppStack) R.string.app_stack_placement else R.string.settings_folder_placement),
-                folder.placement.label(), 1, 3, "folder_placement",
+                folder.placement.label(), 1, totalItems, "folder_placement",
                 leading = { LauncherIcon(LauncherSymbol.Folder) }) { placement = true }
             Spacer(Modifier.height(ListItemDefaults.SegmentedGap))
             SettingsToggleItem(stringResource(R.string.settings_folder_auto_hide), stringResource(R.string.settings_folder_auto_hide_summary),
-                folder.autoHideApps, 2, 3, "folder_auto_hide") { actions.setFolderAutoHide(folder.id, it) }
+                folder.autoHideApps, 2, totalItems, "folder_auto_hide") { actions.setFolderAutoHide(folder.id, it) }
+            Spacer(Modifier.height(ListItemDefaults.SegmentedGap))
+            val dynamicIdx = if (folder.isAppStack) (if (isFixedDock) 5 else 4) else 3
+            SettingsActionItem(
+                "Include Dynamic Apps",
+                "Quickly add recently installed, recently opened, or frequently used apps",
+                dynamicIdx, totalItems, "folder_dynamic_apps",
+                leading = { LauncherIcon(LauncherSymbol.History2) }
+            ) { showDynamicDialog = true }
             if (folder.isAppStack) {
                 Spacer(Modifier.height(ListItemDefaults.SegmentedGap))
                 SettingsToggleItem(
                     "Fix at Bottom as Dock",
                     "Fix at bottom as home dock (up to 5 items). When enabled, the Everything button will move to the dock.",
-                    isFixedDock, 3, if (isFixedDock) 5 else 4, "stack_fix_dock"
+                    isFixedDock, 3, totalItems, "stack_fix_dock"
                 ) { checked ->
                     isFixedDock = checked
                     customPrefs.fixedDockStackId = if (checked) folder.id else null
@@ -490,7 +489,7 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
                     SettingsToggleItem(
                         "Dock Background",
                         "Show translucent background pill behind fixed dock apps",
-                        dockBgEnabled, 4, 5, "stack_dock_bg"
+                        dockBgEnabled, 4, totalItems, "stack_dock_bg"
                     ) { checked ->
                         dockBgEnabled = checked
                         customPrefs.dockBackgroundEnabled = checked
@@ -502,6 +501,23 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
             }
         }
     })
+    if (showDynamicDialog) {
+        DynamicAppsDialog(
+            onDismiss = { showDynamicDialog = false },
+            onSelect = { type ->
+                val dynamicApps = DynamicAppsHelper.getApps(type, uiState)
+                val existingKeys = folder.appKeys.toSet()
+                val newApps = dynamicApps.filter { it.key !in existingKeys }
+                if (newApps.isNotEmpty()) {
+                    val updatedKeys = folder.appKeys + newApps.map { it.key }
+                    actions.updateFolder(folder.id, updatedKeys, folder.placement, folder.appListAtBottom)
+                    Toast.makeText(context, "Added ${newApps.size} apps from ${type.label()}", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "All ${type.label()} apps are already in this folder", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
     if (rename) TextEntryDialog(stringResource(if (folder.isAppStack) R.string.app_stack_rename else R.string.rename_folder), folder.name, { rename = false }, {
         actions.rename(app, it); rename = false
     })

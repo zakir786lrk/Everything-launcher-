@@ -3,6 +3,7 @@
 package rikazzz.everythinglauncher.ui.overlays
 
 import android.appwidget.AppWidgetManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -118,6 +119,7 @@ internal fun HomepageEditorScreen(uiState: LauncherUiState, actions: LauncherAct
     var choosingStacks by rememberSaveable { mutableStateOf(false) }
     var choosingCategories by rememberSaveable { mutableStateOf(false) }
     var choosingGraceWidgets by rememberSaveable { mutableStateOf(false) }
+    var showDynamicDialog by rememberSaveable { mutableStateOf(false) }
     var editingCategoryId by rememberSaveable { mutableStateOf<String?>(null) }
     var editingFolderId by rememberSaveable { mutableStateOf<String?>(null) }
     if (editingCategoryId != null || editingFolderId != null) {
@@ -192,6 +194,7 @@ internal fun HomepageEditorScreen(uiState: LauncherUiState, actions: LauncherAct
         onAddCategory = { choosingCategories = true },
         onAddFolder = { choosingFolders = true },
         onAddStack = { choosingStacks = true },
+        onAddDynamicApps = { showDynamicDialog = true },
         appGroupChoices = profileGroupChoices(uiState, uiState.favoriteKeys),
         emptyMessage = stringResource(R.string.homepage_empty),
         showApps = false, checkboxOnly = true,
@@ -201,6 +204,26 @@ internal fun HomepageEditorScreen(uiState: LauncherUiState, actions: LauncherAct
             else -> null
         } },
     )
+    if (showDynamicDialog) {
+        DynamicAppsDialog(
+            onDismiss = { showDynamicDialog = false },
+            onSelect = { type ->
+                val dynamicApps = DynamicAppsHelper.getApps(type, uiState)
+                var count = 0
+                dynamicApps.forEach { app ->
+                    if (app.key !in uiState.favoriteKeys) {
+                        onToggle(app)
+                        count++
+                    }
+                }
+                if (count > 0) {
+                    Toast.makeText(context, "Added $count apps from ${type.label()}", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "All ${type.label()} apps already in favorites", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -354,6 +377,7 @@ internal fun PopupEditorScreen(owner: LauncherApp, uiState: LauncherUiState, act
     val ready = !uiState.isLoadingSettings && !uiState.settingsLoadFailed &&
         (uiState.popups.containsKey(owner.key) || result.status == ShortcutStatus.Ready || result.status == ShortcutStatus.DefaultLauncherRequired)
     var choosingShortcut by rememberSaveable(owner.key) { mutableStateOf(false) }
+    var showDynamicDialog by rememberSaveable(owner.key) { mutableStateOf(false) }
     // null = editor, false = folders, true = app stacks.
     var choosingGroup by rememberSaveable(owner.key) { mutableStateOf<Boolean?>(null) }
     val groupMode = choosingGroup
@@ -393,6 +417,7 @@ internal fun PopupEditorScreen(owner: LauncherApp, uiState: LauncherUiState, act
         onAddFolder = if (!isStack) ({ choosingGroup = false }) else null,
         onAddStack = if (!isStack) ({ choosingGroup = true }) else null,
         onAddShortcut = { choosingShortcut = true },
+        onAddDynamicApps = if (isStack) null else ({ showDynamicDialog = true }),
         appGroupChoices = if (widgetScreen) profileGroupChoices(uiState, entries.map { it.key }.toSet()) else emptyList(),
         onToggle = { app -> actions.updatePopup(owner, shortcuts) { current ->
             if (current.any { it.key == app.key }) current.filterNot { it.key == app.key } else current + PopupItem(app.key)
@@ -404,6 +429,21 @@ internal fun PopupEditorScreen(owner: LauncherApp, uiState: LauncherUiState, act
             if (widgetScreen) ordered.map { it.copy(grid = it.grid?.copy(column = null, row = null)) } else ordered
         } }, onDone = onBack,
     )
+    if (showDynamicDialog) {
+        val context = LocalContext.current
+        DynamicAppsDialog(
+            onDismiss = { showDynamicDialog = false },
+            onSelect = { type ->
+                val dynamicApps = DynamicAppsHelper.getApps(type, uiState)
+                actions.updatePopup(owner, shortcuts) { current ->
+                    val existingKeys = current.map { it.key }.toSet()
+                    val toAdd = dynamicApps.filter { it.key !in existingKeys }.map { PopupItem(it.key) }
+                    current + toAdd
+                }
+                Toast.makeText(context, "Added ${dynamicApps.size} apps from ${type.label()}", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
 }
 
 @Composable
@@ -424,6 +464,7 @@ private fun ItemSelectionScreen(
     onAddCategory: (() -> Unit)? = null,
     onAddFolder: (() -> Unit)? = null,
     onAddStack: (() -> Unit)? = null,
+    onAddDynamicApps: (() -> Unit)? = null,
     onAddGraceWidget: (() -> Unit)? = null,
     onAddGraceLauncher: (() -> Unit)? = null,
     appGroupChoices: List<SelectionOption> = emptyList(),
@@ -561,7 +602,7 @@ private fun ItemSelectionScreen(
                         stringResource(if (onAddGraceWidget != null) R.string.popup_custom_widget else R.string.popup_add_new))
                 }
             }
-            if (onAddCategory != null || onAddGraceLauncher != null || onAddShortcut != null || onAddFolder != null || onAddStack != null || appGroupChoices.isNotEmpty()) item(key = "app_groups_header", contentType = "header") {
+            if (onAddCategory != null || onAddGraceLauncher != null || onAddShortcut != null || onAddFolder != null || onAddStack != null || onAddDynamicApps != null || appGroupChoices.isNotEmpty()) item(key = "app_groups_header", contentType = "header") {
                 SelectionHeading(stringResource(if (onAddCategory != null) R.string.homepage_app_group else R.string.favorites_shortcuts_app_group), "${tag}_app_groups")
             }
             if (onAddCategory != null) item(key = "add_category") {
@@ -586,6 +627,11 @@ private fun ItemSelectionScreen(
                 item(key = "add_stack") {
                     AddSelectionContent("${tag}_add_stack", enabled, onAddStack,
                         stringResource(R.string.favorites_add_app_stack))
+                }
+            }
+            if (onAddDynamicApps != null) {
+                item(key = "add_dynamic_apps") {
+                    AddSelectionContent("${tag}_add_dynamic_apps", enabled, onAddDynamicApps, "Add Dynamic Apps")
                 }
             }
             appGroupChoices.forEach { choice ->

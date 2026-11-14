@@ -197,7 +197,11 @@ internal fun LauncherOverlays(
             LaunchedEffect(overlay.folder.id) { onChange(null) }
             return
         }
-        val members = folder.appKeys.mapNotNull(uiState::findItem).filter { !it.isPrivateSpace || isPrivate || uiState.settings.privateSpace.exposesApps }
+        val members = if (overlay.folder.id == "favorites_overflow") {
+            folder.appKeys.mapNotNull { key -> uiState.findItem(key) ?: uiState.allApps.firstOrNull { it.key == key } }
+        } else {
+            folder.appKeys.mapNotNull(uiState::findItem).filter { !it.isPrivateSpace || isPrivate || uiState.settings.privateSpace.exposesApps }
+        }
         val edit: (() -> Unit)? = if (isRecent || overlay.folder.id == "favorites_overflow") null else ({
             if (isPrivate) actions.requestPrivateSpace(true) { onChange(LauncherOverlay.SettingsDestination("PrivateSpaceEditor")) }
             else if (isWork) onChange(LauncherOverlay.SettingsDestination("WorkProfileEditor"))

@@ -11,7 +11,14 @@ import rikazzz.everythinglauncher.data.CustomActivityShortcut
 object ActivityLauncherHelper {
     fun launchShortcut(context: Context, shortcut: CustomActivityShortcut) {
         val intent = Intent().apply {
-            component = ComponentName(shortcut.packageName, shortcut.activityName)
+            if (!shortcut.action.isNullOrBlank()) {
+                action = shortcut.action
+            }
+            if (shortcut.packageName.isNotBlank() && shortcut.activityName.isNotBlank()) {
+                component = ComponentName(shortcut.packageName, shortcut.activityName)
+            } else if (shortcut.packageName.isNotBlank()) {
+                `package` = shortcut.packageName
+            }
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
@@ -19,7 +26,11 @@ object ActivityLauncherHelper {
             context.startActivity(intent)
         } catch (sec: SecurityException) {
             // Unexported activity - try launching with root shell
-            tryLaunchWithRoot(context, shortcut.packageName, shortcut.activityName)
+            if (shortcut.packageName.isNotBlank() && shortcut.activityName.isNotBlank()) {
+                tryLaunchWithRoot(context, shortcut.packageName, shortcut.activityName)
+            } else {
+                Toast.makeText(context, "Permission denied: ${sec.localizedMessage ?: sec.message}", Toast.LENGTH_SHORT).show()
+            }
         } catch (e: Exception) {
             Toast.makeText(context, "Cannot launch: ${e.localizedMessage ?: e.message}", Toast.LENGTH_SHORT).show()
         }

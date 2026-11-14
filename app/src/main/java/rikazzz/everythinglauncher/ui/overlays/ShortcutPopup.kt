@@ -85,6 +85,7 @@ fun FolderPopup(
     actions = actions, onLaunchApp = {}, onDismiss = onDismiss, reveal = reveal,
     uiState = uiState, onEdit = onEdit, onDetails = onDetails, onLaunchItem = onLaunchApp,
     showNames = showNames, onOpenAppPopup = onOpenAppPopup,
+    defaults = apps,
 )
 
 /** Same-window overlay: adding a popup window during DOWN would cancel the row's drag. */
@@ -106,6 +107,7 @@ fun ShortcutPopup(
     onLaunchItem: (LauncherApp, Rect) -> Unit = { item, bounds ->
         item.shortcut?.let { actions.launchShortcutAt?.invoke(it, bounds) ?: actions.launchShortcut(it) }
     },
+    defaults: List<LauncherApp> = emptyList(),
 ) {
     val isFolder = app.folderId != null
     val listAppearance = LocalListAppearance.current
@@ -119,9 +121,13 @@ fun ShortcutPopup(
         // Keep cached content while refreshing; never insert a progress indicator.
         if (!isFolder) value = loadShortcuts(app)
     }
-    val shortcuts = result.asApps(app).map { uiState.findItem(it.key) ?: it }
+    val shortcuts = if (isFolder && defaults.isNotEmpty()) defaults else result.asApps(app).map { uiState.findItem(it.key) ?: it }
     val customItems = uiState.popups[app.key]
-    val entries = uiState.popupItems(app, shortcuts)
+    val entries = if (isFolder && (app.folderId == "favorites_overflow" || (defaults.isNotEmpty() && uiState.folders.none { it.id == app.folderId }))) {
+        defaults.map { PopupItem(it.key) }
+    } else {
+        uiState.popupItems(app, shortcuts)
+    }
     val list = rememberLazyListState()
     var editingWidget by remember(app.key) { mutableStateOf<String?>(null) }
     var resizingWidget by remember(app.key) { mutableStateOf(false) }

@@ -688,12 +688,6 @@ internal fun LauncherScreen(
     var overlay by remember { mutableStateOf<LauncherOverlay?>(null) }
     var firstTimeSetupDone by remember { mutableStateOf(customPrefs.firstTimeSetupDone) }
     var showApplyingOverlay by remember { mutableStateOf(false) }
-
-    LaunchedEffect(drawerOpen) {
-        if (drawerOpen && customPrefs.drawerAutoOpenKeyboard && overlay == null) {
-            overlay = LauncherOverlay.Search
-        }
-    }
     var systemActionAccess by rememberSaveable { mutableStateOf(false) }
     var buttonTransition by remember { mutableStateOf<GraceButtonTransition?>(null) }
     var instantButtonEntrance by remember { mutableStateOf(false) }
@@ -1469,6 +1463,8 @@ internal fun LauncherScreen(
                   firstTimeSetupDone = true
                   showApplyingOverlay = true
               },
+              actions = screenActions,
+              uiState = uiState,
               modifier = Modifier.zIndex(10f)
           )
       }
