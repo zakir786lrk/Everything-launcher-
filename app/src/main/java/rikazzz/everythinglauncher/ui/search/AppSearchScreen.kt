@@ -173,6 +173,7 @@ internal fun AppSearchScreen(
     var webSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(query, customPrefs.searchWebSuggestionsEnabled) {
         if (customPrefs.searchWebSuggestionsEnabled && query.length >= 2) {
+            delay(150)
             webSuggestions = WebSuggestionsUtils.getSuggestions(query).distinct()
         } else {
             webSuggestions = emptyList()
@@ -400,7 +401,11 @@ internal fun AppSearchScreen(
                 Text(stringResource(R.string.search_no_results), Modifier.padding(20.dp), color = appearance.text)
             }
 
-            itemsIndexed(results, key = { index, result -> "${result.key}_$index" }) { index, result ->
+            itemsIndexed(
+                items = results,
+                key = { _, result -> result.key },
+                contentType = { _, result -> result::class.java.simpleName }
+            ) { index, result ->
                 when (result) {
                     is SearchResult.Calculator -> {
                         Card(

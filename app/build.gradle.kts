@@ -19,13 +19,21 @@ android {
         versionName = "1.2.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        resourceConfigurations += listOf(
+            "en", "ar", "az", "de", "el", "es", "fr", "gl",
+            "it", "ja", "ko", "nl", "pon", "pt", "pt-rBR", "ru", "zh-rCN"
+        )
     }
 
     buildTypes {
         release {
-            optimization {
-                enable = true
-            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

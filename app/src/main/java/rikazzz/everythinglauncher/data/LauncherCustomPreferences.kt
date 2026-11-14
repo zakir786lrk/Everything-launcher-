@@ -6,7 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class LauncherCustomPreferences(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences("launcher_custom_prefs", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = context.applicationContext.getSharedPreferences("launcher_custom_prefs", Context.MODE_PRIVATE)
 
     // Dock & App Stacks
     var fixedDockStackId: String?
@@ -185,5 +185,15 @@ class LauncherCustomPreferences(context: Context) {
         if (json.has("search_show_frequently_opened")) editor.putBoolean("search_show_frequently_opened", json.optBoolean("search_show_frequently_opened", true))
         if (json.has("default_search_engine")) editor.putString("default_search_engine", json.optString("default_search_engine", "google"))
         editor.apply()
+    }
+
+    companion object {
+        @Volatile
+        private var instance: LauncherCustomPreferences? = null
+
+        fun getInstance(context: Context): LauncherCustomPreferences =
+            instance ?: synchronized(this) {
+                instance ?: LauncherCustomPreferences(context.applicationContext).also { instance = it }
+            }
     }
 }

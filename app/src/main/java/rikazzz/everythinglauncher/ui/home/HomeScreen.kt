@@ -393,7 +393,11 @@ internal fun HomeScreen(
             userScrollEnabled = !editingLayout && reorder.draggingKey == null && !resizing,
             overscrollEffect = null,
         ) {
-            items(renderedEntries, key = { FavoritesReorderState.itemKey(it.key) }) { entry ->
+            items(
+                items = renderedEntries,
+                key = { FavoritesReorderState.itemKey(it.key) },
+                contentType = { GraceWidget.fromKey(it.key)?.name ?: "entry" }
+            ) { entry ->
                 val grace = GraceWidget.fromKey(entry.key)
                 val widget = drafts[entry.key] ?: entry.widget
                 val app = uiState.findItem(entry.key)

@@ -128,7 +128,7 @@ fun AppIcon(app: LauncherApp, modifier: Modifier = Modifier, size: Dp = 38.dp, a
     display: IconDisplaySettings = IconDisplaySettings()) {
     val appearance = LocalLauncherAppearance.current
     val context = androidx.compose.ui.platform.LocalContext.current
-    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences.getInstance(context) }
     val displaySize = size * if (applyDisplaySize) appearance.iconSize / 100f else 1f
     val style = display.style
     val iconModifier = if (app.folderId == null) modifier.launcherAnimationTarget(
