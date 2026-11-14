@@ -171,7 +171,7 @@
     <string name="grace_action_unavailable">This action is unavailable on this device.</string>
     <string name="grace_accessibility_title">Allow system actions</string>
     <string name="grace_accessibility_description">Use Everything button or home screen gestures to lock the screen or open notifications and control center. No screen content is read or stored.</string>
-    <string name="grace_accessibility_explanation">These actions need Android accessibility access, not root. In system settings, enable Grace Launcher under installed apps or downloaded services. Grace only performs the action you trigger; it does not read screen content or monitor your activity. You can revoke access at any time.</string>
+    <string name="grace_accessibility_explanation">These actions need Android accessibility access, not root. In system settings, enable Everything Launcher under installed apps or downloaded services. Everything only performs the action you trigger; it does not read screen content or monitor your activity. You can revoke access at any time.</string>
     <string name="grace_accessibility_required">Requires accessibility access for system actions.</string>
     <string name="shortcuts_title">Shortcuts</string>
     <string name="shortcuts_search">Search shortcuts</string>
@@ -188,7 +188,7 @@
     <string name="work_profile_edit">Edit</string>
     <string name="work_profile_setup">Open work profile settings</string>
     <string name="work_profile_setup_summary">Manage your work profile in Android settings</string>
-    <string name="work_profile_default_home">Set Grace as your default launcher to access work apps</string>
+    <string name="work_profile_default_home">Set Everything as your default launcher to access work apps</string>
     <string name="work_profile_empty">No Android work profile found. Work apps remain available as normal apps when grouping is disabled.</string>
     <string name="work_profile_no_apps">No work apps available. Your work profile may be paused.</string>
     <string name="private_space_title">Private space</string>
@@ -215,7 +215,7 @@
     <string name="private_space_empty">No apps in Private space</string>
     <string name="private_space_loading">Loading Private space…</string>
     <string name="private_space_unavailable">Private space is unavailable. Please try again.</string>
-    <string name="private_space_default_home">Set Grace as your default launcher to use Private space</string>
+    <string name="private_space_default_home">Set Everything as your default launcher to use Private space</string>
     <string name="private_space_unsupported">Private space requires Android 15 or later</string>
     <string name="private_space_verify_title">Verify it’s you</string>
     <string name="private_space_security_required">Set a device screen lock to enable password protection</string>
@@ -248,7 +248,7 @@
     <string name="action_unavailable">This action isn’t available on this device</string>
     <string name="app_shortcuts">Open shortcuts</string>
     <string name="app_actions">App actions</string>
-    <string name="shortcut_permission">Set Grace as your default home app to see shortcuts provided by this app.</string>
+    <string name="shortcut_permission">Set Everything as your default home app to see shortcuts provided by this app.</string>
     <string name="set_default_launcher">Set default launcher</string>
     <string name="choose_default_launcher">Choose default launcher</string>
     <string name="shortcut_error">Couldn’t load or open this shortcut</string>
@@ -284,7 +284,7 @@
     <string name="package_name_copied">Copied</string>
     <string name="choose_app_store">Choose app store</string>
     <string name="app_store_unavailable">No app store can open this app’s page.</string>
-    <string name="grace_settings">Grace settings</string>
+    <string name="grace_settings">Everything settings</string>
     <string name="done">Done</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
@@ -373,11 +373,11 @@
     <string name="notification_allow">Show app notifications</string>
 
     <!-- Media -->
-    <string name="media_service_name">Grace Launcher notifications and media</string>
+    <string name="media_service_name">Everything Launcher notifications and media</string>
     <string name="media_player_summary">Show playback on your home screen</string>
     <string name="media_allow_controls">Allow notifications and media</string>
     <string name="media_access_required">Notification access is required</string>
-    <string name="media_access_explanation">Enable notification access for Grace Launcher on the next screen. Grace uses it to show app notification previews and messages, open or dismiss notifications when you choose, and control media sessions. Notification text and icons are kept only in memory, never saved or uploaded. You can revoke access at any time in system settings.</string>
+    <string name="media_access_explanation">Enable notification access for Everything Launcher on the next screen. Everything uses it to show app notification previews and messages, open or dismiss notifications when you choose, and control media sessions. Notification text and icons are kept only in memory, never saved or uploaded. You can revoke access at any time in system settings.</string>
     <string name="media_open_settings">Open settings</string>
     <string name="media_play">Play</string>
     <string name="media_pause">Pause</string>
@@ -395,7 +395,7 @@
     <string name="usage_enable">Enable digital wellbeing</string>
     <string name="usage_access">Usage access</string>
     <string name="usage_access_required">Allow usage access to show screen time and sort apps</string>
-    <string name="usage_access_explanation">Allow Grace Launcher in the system usage access settings. Usage totals stay on this device and are used only for screen time and app ordering.</string>
+    <string name="usage_access_explanation">Allow Everything Launcher in the system usage access settings. Usage totals stay on this device and are used only for screen time and app ordering.</string>
     <string name="usage_show_favorites">Show app usage in favorites</string>
     <string name="usage_sort">Sort by app usage</string>
     <string name="usage_day">Today</string>
@@ -439,9 +439,9 @@
     <string name="lab_percentage">%1$d%%</string>
     <string name="settings_advanced_summary">More options for your launcher</string>
     <string name="settings_about">About</string>
-    <string name="settings_about_summary">Grace Launcher, updates, and licenses</string>
+    <string name="settings_about_summary">Everything Launcher, updates, and licenses</string>
     <string name="settings_open_home">Go directly to home</string>
-    <string name="settings_open_home_summary">Go directly to home without setting Grace as the default launcher</string>
+    <string name="settings_open_home_summary">Go directly to home without setting Everything as the default launcher</string>
     <string name="settings_instant_access">Instant access</string>
     <string name="settings_calendar_agenda">Calendar &amp; agenda</string>
     <string name="settings_calendar_agenda_summary">Show upcoming events on your home screen</string>
@@ -518,7 +518,7 @@
     <string name="font_noto_sans">Noto Sans</string>
     <string name="font_luckiest_guy">Luckiest Guy</string>
     <string name="font_apply_settings">Apply font to settings</string>
-    <string name="font_apply_settings_summary">Use the combined fonts in Grace settings</string>
+    <string name="font_apply_settings_summary">Use the combined fonts in Everything settings</string>
     <string name="font_import_error">Could not import this font. Choose a valid TTF, OTF or TTC file, up to 20 MB.</string>
     <string name="settings_text_auto">Automatic</string>
     <string name="settings_text_light">Light text</string>
@@ -654,18 +654,18 @@
     <string name="weather_settings_disabled_summary">Connect a weather app</string>
     <string name="weather_settings_enable">Show weather</string>
     <string name="weather_settings_enable_summary">Show weather beside the date and in your agenda.</string>
-    <string name="weather_settings_about">Built-in weather uses the locations and forecasts saved in Breezy Weather. Allow access to share that data with Grace Launcher.</string>
+    <string name="weather_settings_about">Built-in weather uses the locations and forecasts saved in Breezy Weather. Allow access to share that data with Everything Launcher.</string>
     <string name="weather_settings_connection">Breezy Weather</string>
     <string name="weather_settings_disabled">Turn on weather to connect to Breezy Weather.</string>
     <string name="weather_settings_loading">Checking Breezy Weather…</string>
     <string name="weather_settings_not_installed">Install Breezy Weather to use built-in weather. Without it, this feature stays unavailable.</string>
-    <string name="weather_settings_permission">Allow Grace Launcher to read weather shared by Breezy Weather.</string>
+    <string name="weather_settings_permission">Allow Everything Launcher to read weather shared by Breezy Weather.</string>
     <string name="weather_settings_no_locations">Add a location in Breezy Weather, then return here.</string>
     <string name="weather_settings_no_data">Open Breezy Weather and refresh the forecast for this location, then return here.</string>
-    <string name="weather_settings_incompatible">Check for updates to Grace Launcher and Breezy Weather to use compatible versions of weather sharing.</string>
+    <string name="weather_settings_incompatible">Check for updates to Everything Launcher and Breezy Weather to use compatible versions of weather sharing.</string>
     <string name="weather_settings_unavailable">Breezy Weather could not share its data. Open it to check the forecast, then try again.</string>
     <string name="weather_settings_ready">Connected to Breezy Weather.</string>
-    <string name="weather_settings_update_notifier">For automatic updates: Breezy Weather → Settings → External modules → Location Update Notifier → Grace Launcher.</string>
+    <string name="weather_settings_update_notifier">For automatic updates: Breezy Weather → Settings → External modules → Location Update Notifier → Everything Launcher.</string>
     <string name="weather_settings_install">Install Breezy Weather</string>
     <string name="weather_settings_allow">Allow weather access</string>
     <string name="weather_settings_open">Open Breezy Weather</string>
@@ -677,7 +677,7 @@
     <string name="weather_settings_forecast_days">Forecast days</string>
     <string name="weather_mode_location_update_notifier">Location Update Notifier</string>
     <string name="weather_mode_gadgetbridge">Gadgetbridge</string>
-    <string name="weather_gadgetbridge_setup">Breezy Weather: Enable Gadgetbridge sharing, select Grace Launcher, and refresh the weather.</string>
+    <string name="weather_gadgetbridge_setup">Breezy Weather: Enable Gadgetbridge sharing, select Everything Launcher, and refresh the weather.</string>
     <string name="weather_gadgetbridge_weathermaster_setup">WeatherMaster: Enable Gadgetbridge sharing and background updates, then set a default location.</string>
     <string name="weather_gadgetbridge_waiting">Waiting for weather data.</string>
     <string name="weather_gadgetbridge_loading">Loading saved weather…</string>
@@ -723,7 +723,7 @@
 
     <!-- Licenses -->
     <string name="licenses_app_license">GNU GPLv3</string>
-    <string name="licenses_app_summary">Grace Launcher is free software, licensed under the GNU General Public License version 3. Distributed without warranty. Third-party components retain their own licenses.</string>
+    <string name="licenses_app_summary">Everything Launcher is free software, licensed under the GNU General Public License version 3. Distributed without warranty. Third-party components retain their own licenses.</string>
     <string name="licenses_third_party">Third-party libraries</string>
     <plurals name="licenses_count">
         <item quantity="one">%1$d library</item>
@@ -811,7 +811,7 @@
     <string name="app_selection_fast_scroll">Quickly scroll through apps</string>
 
     <!-- Home widgets -->
-    <string name="widget_home_menu">Grace widget</string>
+    <string name="widget_home_menu">Everything widget</string>
     <string name="widget_add">Add custom widget</string>
     <string name="widget_choose">Choose a widget</string>
     <string name="widget_search">Search widgets</string>
@@ -825,7 +825,7 @@
     <string name="widget_remove">Remove</string>
     <string name="widget_move_home">Move the clock and app list</string>
     <string name="widget_resize">Resize widget</string>
-    <string name="grace_widgets_title">Grace widgets</string>
+    <string name="grace_widgets_title">Everything widgets</string>
     <string name="grace_widget_baseline">Baseline (invisible)</string>
     <string name="popup_widget_full_width">Full width</string>
     <string name="popup_widget_background">Background</string>
@@ -1012,7 +1012,7 @@
     <string name="wallpaper_brightness_light">Light wallpaper</string>
     <string name="wallpaper_color_access_unavailable">Uses dark wallpaper colors until automatic detection is allowed</string>
     <string name="wallpaper_color_access_title">Allow wallpaper color detection?</string>
-    <string name="wallpaper_color_access_summary">Allow Grace to use wallpaper colors provided by Android to choose readable text? If you decline, Auto treats the wallpaper as dark.</string>
+    <string name="wallpaper_color_access_summary">Allow Everything to use wallpaper colors provided by Android to choose readable text? If you decline, Auto treats the wallpaper as dark.</string>
     <string name="wallpaper_color_access_allow">Allow</string>
     <string name="wallpaper_color_access_decline">Not now</string>
     <string name="clock_tab_presets">Presets</string>
@@ -1082,8 +1082,8 @@
     <string name="category_open_dw">Open Digital wellbeing</string>
     <string name="app_list_bottom_folders">Bottom folders</string>
     <string name="app_list_edit">Edit app list</string>
-    <string name="app_list_grace_settings">Grace settings</string>
-    <string name="app_list_add_grace">Grace launcher</string>
+    <string name="app_list_grace_settings">Everything settings</string>
+    <string name="app_list_add_grace">Everything launcher</string>
     <string name="alphabet_show_in">Show in</string>
     <string name="list_symbol_horizontal_offset">Symbol horizontal offset</string>
     <string name="alphabet_touch_area">Show touch area</string>

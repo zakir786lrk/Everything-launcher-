@@ -134,6 +134,9 @@ import rikazzz.everythinglauncher.ui.overlays.ShortcutRevealState
 import rikazzz.everythinglauncher.ui.components.LauncherIcon
 import rikazzz.everythinglauncher.ui.components.LauncherSymbol
 import rikazzz.everythinglauncher.ui.components.AppStack
+import rikazzz.everythinglauncher.ui.onboarding.SetupWizardScreen
+import rikazzz.everythinglauncher.ui.components.SettingsApplyingOverlay
+import rikazzz.everythinglauncher.SettingsActivity
 import rikazzz.everythinglauncher.ui.drawer.AppDrawerScreen
 import rikazzz.everythinglauncher.ui.drawer.AppListModel
 import rikazzz.everythinglauncher.ui.home.HomeScreen
@@ -676,6 +679,14 @@ internal fun LauncherScreen(
     }
     var selectedLetter by remember { mutableStateOf<String?>(null) }
     var overlay by remember { mutableStateOf<LauncherOverlay?>(null) }
+    var firstTimeSetupDone by remember { mutableStateOf(customPrefs.firstTimeSetupDone) }
+    var showApplyingOverlay by remember { mutableStateOf(false) }
+
+    LaunchedEffect(drawerOpen) {
+        if (drawerOpen && customPrefs.drawerAutoOpenKeyboard && overlay == null) {
+            overlay = LauncherOverlay.Search
+        }
+    }
     var systemActionAccess by rememberSaveable { mutableStateOf(false) }
     var buttonTransition by remember { mutableStateOf<GraceButtonTransition?>(null) }
     var instantButtonEntrance by remember { mutableStateOf(false) }
@@ -1117,7 +1128,13 @@ internal fun LauncherScreen(
                     buttonTransition = GraceButtonTransition(target.action, origin, durationMillis = buttonSettings.searchAnimationDurationMs)
                 overlay = LauncherOverlay.search(uiState.settings.search.enabled)
             }
-            GraceButtonAction.Settings -> overlay = LauncherOverlay.Settings
+            GraceButtonAction.Settings -> {
+                try {
+                    context.startActivity(android.content.Intent(context, SettingsActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (e: Exception) {
+                    overlay = LauncherOverlay.Settings
+                }
+            }
             GraceButtonAction.App, GraceButtonAction.Shortcut -> {
                 val app = target.itemKey?.let(uiState::findItem)
                 if (app != null) onLaunchApp(app)
@@ -1399,6 +1416,32 @@ internal fun LauncherScreen(
                 onFinishEditing = { editingHome = false },
                 modifier = Modifier.align(androidx.compose.ui.AbsoluteAlignment.TopLeft).absoluteOffset(x = buttonBounds.left.dp, y = buttonBounds.top.dp))
         }
+
+        if (pageCount > 1 && !drawerOpen && overlay == null && !editingHome && !editingWidgetScreen) {
+            val indicatorBottom = bottomInset + if (hasFixedDock) 84.dp else 16.dp
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = indicatorBottom)
+                    .zIndex(2.5f)
+                    .graphicsLayer { alpha = if (drawerTransition != null) 0f else (1f - drawerVisibility).coerceIn(0f, 1f) },
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(pageCount) { page ->
+                    val isSelected = page == homePager.currentPage
+                    val dotWidth = if (isSelected) 18.dp else 6.dp
+                    val dotColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
+                    Box(
+                        Modifier
+                            .height(6.dp)
+                            .width(dotWidth)
+                            .clip(CircleShape)
+                            .background(dotColor)
+                    )
+                }
+            }
+        }
       }
       }
       LauncherOverlays(
@@ -1411,6 +1454,22 @@ internal fun LauncherScreen(
       )
       if (systemActionAccess) GraceSystemAccessDialog { systemActionAccess = false }
       buttonTransition?.let { GraceButtonTransitionOverlay(it) }
+
+      if (!firstTimeSetupDone) {
+          SetupWizardScreen(
+              onDone = {
+                  customPrefs.firstTimeSetupDone = true
+                  firstTimeSetupDone = true
+                  showApplyingOverlay = true
+              },
+              modifier = Modifier.zIndex(10f)
+          )
+      }
+      SettingsApplyingOverlay(
+          visible = showApplyingOverlay,
+          onDismiss = { showApplyingOverlay = false },
+          modifier = Modifier.zIndex(11f)
+      )
     }
 }
 

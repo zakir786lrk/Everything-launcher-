@@ -191,14 +191,14 @@ internal fun LauncherOverlays(
             isWork -> uiState.workFolder.takeIf { uiState.settings.workProfile.enabled && uiState.workProfiles.isNotEmpty() }
             isRecent -> uiState.recentlyInstalledFolder(stringResource(R.string.recently_installed))
                 .takeIf { uiState.settings.listAppearance.showRecentlyInstalled }
-            else -> uiState.folders.firstOrNull { it.id == overlay.folder.id }
+            else -> uiState.folders.firstOrNull { it.id == overlay.folder.id } ?: overlay.folder
         }
         if (folder == null) {
             LaunchedEffect(overlay.folder.id) { onChange(null) }
             return
         }
         val members = folder.appKeys.mapNotNull(uiState::findItem).filter { !it.isPrivateSpace || isPrivate || uiState.settings.privateSpace.exposesApps }
-        val edit: (() -> Unit)? = if (isRecent) null else ({
+        val edit: (() -> Unit)? = if (isRecent || overlay.folder.id == "favorites_overflow") null else ({
             if (isPrivate) actions.requestPrivateSpace(true) { onChange(LauncherOverlay.SettingsDestination("PrivateSpaceEditor")) }
             else if (isWork) onChange(LauncherOverlay.SettingsDestination("WorkProfileEditor"))
             else onChange(LauncherOverlay.FolderSettings(folder.id))

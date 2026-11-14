@@ -117,8 +117,12 @@ internal fun AppSearchScreen(
     val customPrefs = remember(context) { LauncherCustomPreferences(context) }
     val deviceSettingsRepo = remember(context) { DeviceSettingsRepository(context) }
     val keyboard = LocalSoftwareKeyboardController.current
-    var requestKeyboard by remember { mutableStateOf(transition == null) }
-    LaunchedEffect(transition) {
+    var requestKeyboard by remember { mutableStateOf(transition == null && customPrefs.searchAutoOpenKeyboard) }
+    LaunchedEffect(transition, customPrefs.searchAutoOpenKeyboard) {
+        if (!customPrefs.searchAutoOpenKeyboard) {
+            requestKeyboard = false
+            return@LaunchedEffect
+        }
         if (transition != null) delay(100)
         requestKeyboard = true
     }

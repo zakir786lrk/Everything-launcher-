@@ -105,7 +105,6 @@ internal fun HomepageEditorScreen(uiState: LauncherUiState, actions: LauncherAct
     initialAppKey: String? = null, onDone: () -> Unit) {
     val context = LocalContext.current
     val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
-    var stopFavoritesScroll by remember { mutableStateOf(customPrefs.stopFavoritesScrollingWhenFitting) }
     var initialSelectionApplied by rememberSaveable(initialAppKey) { mutableStateOf(false) }
     LaunchedEffect(initialAppKey, uiState.isLoadingApps, uiState.isLoadingSettings, uiState.settingsLoadFailed) {
         if (!initialSelectionApplied && initialAppKey != null && !uiState.isLoadingApps &&
@@ -164,18 +163,9 @@ internal fun HomepageEditorScreen(uiState: LauncherUiState, actions: LauncherAct
                     "favorites_lock_editing") { locked ->
                     actions.updateSettings { it.copy(homeLayout = it.homeLayout.copy(editingLocked = locked)) }
                 }
-                SettingsActionItem(stringResource(R.string.homepage_adjust_height), null, 0, 2, "homepage_adjust_height",
+                SettingsActionItem(stringResource(R.string.homepage_adjust_height), null, 0, 1, "homepage_adjust_height",
                     enabled = !uiState.isLoadingSettings && !uiState.settingsLoadFailed,
                     leading = { LauncherIcon(LauncherSymbol.Move) }, onClick = actions.moveWidget)
-                SettingsToggleItem(
-                    "Stop Scrolling When Favorites Fit",
-                    "Stop scrolling home screen favorite apps if they are a fixed number and fit without scrolling",
-                    stopFavoritesScroll, 1, 2, "stop_favorites_scrolling",
-                    leading = { LauncherIcon(LauncherSymbol.Move) }
-                ) { checked ->
-                    stopFavoritesScroll = checked
-                    customPrefs.stopFavoritesScrollingWhenFitting = checked
-                }
             }
         },
         selected = uiState.homeItems.map { item ->

@@ -112,6 +112,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import rikazzz.everythinglauncher.data.FolderPlacement
+import rikazzz.everythinglauncher.data.LauncherFolder
+import rikazzz.everythinglauncher.data.PopupItem
 import rikazzz.everythinglauncher.data.nextVisibleEvent
 import rikazzz.everythinglauncher.data.media.MediaCommand
 import rikazzz.everythinglauncher.data.IconDesign
@@ -325,42 +328,73 @@ internal fun HomeScreen(
                 else listState.requestScrollToItem(baselineIndex, 0)
             }
         }
-        val stopFavoritesScroll = customPrefs.stopFavoritesScrollingWhenFitting
-        val needsScrolling by remember(reorder.keys, itemHeights, availableHeight, anchoredOrigin, baselineTop, resolvedTop, toolbarHeight, density, listState) {
-            derivedStateOf {
-                val totalCount = listState.layoutInfo.totalItemsCount
-                val visibleCount = listState.layoutInfo.visibleItemsInfo.size
-                if (totalCount > 0 && visibleCount < totalCount) return@derivedStateOf true
+        val allOrderedEntries = reorder.keys.mapNotNull(entriesByKey::get)
+        val isFolderMode = !editingLayout && !widgetEditing && customPrefs.favoritesOverflowMode == "folder"
+        val maxVisibleApps = customPrefs.favoritesMaxVisibleCount
 
-                val startTopPx = with(density) { ((anchoredOrigin ?: if (baselineIndex >= 0) baselineTop else resolvedTop) - toolbarHeight).coerceAtLeast(0.dp).roundToPx() }
-                val totalItemsHeightPx = reorder.keys.sumOf { itemHeights[it] ?: 0 }
-                val bottomReservedPx = with(density) { (bottomInset + if (fixedDockStack != null) 90.dp else 24.dp).roundToPx() }
-                val availableHeightPx = with(density) { availableHeight.roundToPx() }
-
-                (startTopPx + totalItemsHeightPx + bottomReservedPx) > availableHeightPx
+        val renderedEntries = remember(allOrderedEntries, isFolderMode, maxVisibleApps, uiState, fixedDockStack) {
+            if (!isFolderMode) allOrderedEntries
+            else {
+                var appCount = 0
+                val visible = mutableListOf<PopupItem>()
+                for (entry in allOrderedEntries) {
+                    val app = uiState.findItem(entry.key)
+                    if (app != null) {
+                        val folder = app.folderId?.let(favoriteFolders::get)
+                        if (folder != null && folder.id == fixedDockStack?.id) {
+                            visible.add(entry)
+                        } else {
+                            if (appCount < maxVisibleApps) {
+                                visible.add(entry)
+                                appCount++
+                            }
+                        }
+                    } else {
+                        visible.add(entry)
+                    }
+                }
+                visible
             }
         }
-        val isScrollAllowed = !editingLayout && reorder.draggingKey == null && !resizing && (!stopFavoritesScroll || needsScrolling)
 
-        LaunchedEffect(stopFavoritesScroll, needsScrolling) {
-            if (stopFavoritesScroll && !needsScrolling) {
-                listState.scrollToItem(0, 0)
+        val overflowApps = remember(allOrderedEntries, isFolderMode, maxVisibleApps, uiState, fixedDockStack) {
+            if (!isFolderMode) emptyList<LauncherApp>()
+            else {
+                var appCount = 0
+                val overflow = mutableListOf<LauncherApp>()
+                for (entry in allOrderedEntries) {
+                    val app = uiState.findItem(entry.key)
+                    if (app != null) {
+                        val folder = app.folderId?.let(favoriteFolders::get)
+                        if (folder != null && folder.id == fixedDockStack?.id) {
+                            // Ignored (dock)
+                        } else {
+                            if (appCount < maxVisibleApps) {
+                                appCount++
+                            } else {
+                                overflow.add(app)
+                            }
+                        }
+                    }
+                }
+                overflow
             }
         }
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(top = toolbarHeight)
-                .then(if (stopFavoritesScroll && !needsScrolling) Modifier else Modifier.overscroll(overscroll))
+                .overscroll(overscroll)
                 .nestedScroll(scrollConnection).testTag("home_content"),
             contentPadding = PaddingValues(start = uiState.settings.listAppearance.startPadding,
                 end = uiState.settings.listAppearance.endPadding,
                 top = ((anchoredOrigin ?: if (baselineIndex >= 0) baselineTop else resolvedTop) - toolbarHeight).coerceAtLeast(0.dp),
                 bottom = if (baselineIndex >= 0 && (anchoredOrigin == null || anchoredOrigin < toolbarHeight))
                     (availableHeight - baselineTop).coerceAtLeast(100.dp + bottomInset) else 100.dp + bottomInset),
-            userScrollEnabled = isScrollAllowed,
+            userScrollEnabled = !editingLayout && reorder.draggingKey == null && !resizing,
             overscrollEffect = null,
         ) {
-            items(reorder.keys.mapNotNull(entriesByKey::get), key = { FavoritesReorderState.itemKey(it.key) }) { entry ->
+            items(renderedEntries, key = { FavoritesReorderState.itemKey(it.key) }) { entry ->
                 val grace = GraceWidget.fromKey(entry.key)
                 val widget = drafts[entry.key] ?: entry.widget
                 val app = uiState.findItem(entry.key)
@@ -469,13 +503,35 @@ internal fun HomeScreen(
                                 categoryIcon = categoryIcon)
                             else LauncherAppRow(app, onClick = { onLaunchApp(app) }, onLongClick = { onAppDetails(app) },
                                 usageText = favoriteUsageLabel(app, uiState),
-                                onSwipeRight = { onAppShortcuts(app, it) }, gestures = rowGestures,
+                                onSwipeRight = if (customPrefs.swipeAppRightToOpenPopup) ({ onAppShortcuts(app, it) }) else ({}),
+                                gestures = if (customPrefs.swipeAppRightToOpenPopup) rowGestures else rowGestures.copy(popupsEnabled = false),
                                 highlighted = highlightedAppKey == app.key,
                                 notifications = uiState.notificationPreviewsFor(app),
                                 showLabel = uiState.settings.listAppearance.showNames(favorites = true),
                                 categoryIcon = categoryIcon)
                         }
                     }
+                }
+            }
+            if (overflowApps.isNotEmpty()) {
+                item(key = "favorites_overflow_folder") {
+                    val overflowFolder = remember(overflowApps, customPrefs.favoritesOverflowFolderName) {
+                        LauncherFolder(
+                            id = "favorites_overflow",
+                            name = customPrefs.favoritesOverflowFolderName.ifBlank { "More" },
+                            appKeys = overflowApps.map { it.key },
+                            placement = FolderPlacement.Both,
+                        )
+                    }
+                    FolderRow(
+                        folder = overflowFolder,
+                        app = overflowFolder.asApp(),
+                        onOpen = { bounds -> onOpenFolder(overflowFolder, bounds) },
+                        onLongClick = null,
+                        onDrag = { bounds, expanded -> onFolderDrag(overflowFolder, bounds, expanded) },
+                        onDragEnd = onFolderDragEnd,
+                        showLabel = uiState.settings.listAppearance.showNames(favorites = true),
+                    )
                 }
             }
         }

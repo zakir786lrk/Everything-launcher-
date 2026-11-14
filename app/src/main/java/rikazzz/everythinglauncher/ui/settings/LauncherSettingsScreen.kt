@@ -86,7 +86,7 @@ internal enum class SettingsPage {
     WidgetScreen, WidgetScreenEditor, Homepage, AppList, FeedScreen, StatusScreen, DigitalWellbeing, TabletsFoldables,
     Wallpaper, WallpaperDesigner,
     AppCategories, CategoryEditor, TasksOrg, TaskLists,
-    CustomShortcuts,
+    CustomShortcuts, Backup,
 }
 
 /** The window's existing system-bar owner follows the active settings surface. */
@@ -233,7 +233,8 @@ fun LauncherSettingsScreen(
                     SettingsPage.Homepage -> rikazzz.everythinglauncher.ui.overlays.HomepageEditorScreen(
                         uiState, actions, actions.toggleFavorite, actions.reorderFavorites, onDone = back)
                     SettingsPage.AppList -> rikazzz.everythinglauncher.ui.overlays.AppListEditorScreen(uiState, actions, back)
-                    SettingsPage.FeedScreen -> FeedSettingsPage(customPrefs, back)
+                    SettingsPage.FeedScreen -> FeedSettingsPage(uiState, actions, customPrefs, back)
+                    SettingsPage.Backup -> BackupSettingsScreen(uiState, actions, back)
                     SettingsPage.StatusScreen -> SettingsPlaceholder(stringResource(R.string.settings_status_screen), "status_screen_settings", back)
                     SettingsPage.Clock -> ClockSettings(uiState, actions, back) { navigate(SettingsPage.ClockStyle) }
                     SettingsPage.CustomShortcuts -> ActivityLauncherScreen(onBack = back)
@@ -421,8 +422,12 @@ private fun SettingsHome(
     val languageTag by rememberAppLanguage()
     val categories = listOf(
         SettingsPage.Productivity to LauncherSymbol.Star,
+        SettingsPage.Search to LauncherSymbol.Search,
+        SettingsPage.Gestures to LauncherSymbol.Gesture,
         SettingsPage.Themes to LauncherSymbol.Palette,
+        SettingsPage.FeedScreen to LauncherSymbol.Outbound,
         SettingsPage.CustomShortcuts to LauncherSymbol.Steppers,
+        SettingsPage.Backup to LauncherSymbol.Folder,
         SettingsPage.Advanced to LauncherSymbol.Settings,
         SettingsPage.Language to LauncherSymbol.Language,
         SettingsPage.About to LauncherSymbol.Info,
@@ -437,17 +442,25 @@ private fun SettingsHome(
             categories.forEachIndexed { index, (page, symbol) ->
                 item(key = page.name) {
                     val title = when (page) {
-                        SettingsPage.CustomShortcuts -> "Custom Activity Shortcuts"
                         SettingsPage.Productivity -> stringResource(R.string.settings_productivity)
+                        SettingsPage.Search -> stringResource(R.string.settings_search)
+                        SettingsPage.Gestures -> stringResource(R.string.settings_gestures)
                         SettingsPage.Themes -> stringResource(R.string.settings_themes)
+                        SettingsPage.FeedScreen -> "Feed & Home Pages"
+                        SettingsPage.CustomShortcuts -> "Custom Activity Shortcuts"
+                        SettingsPage.Backup -> "Backup & Restore"
                         SettingsPage.Advanced -> stringResource(R.string.settings_advanced)
                         SettingsPage.Language -> stringResource(R.string.settings_language)
                         else -> stringResource(R.string.settings_about)
                     }
                     val summary = when (page) {
-                        SettingsPage.CustomShortcuts -> "Create shortcuts for hidden activities, sub-settings & tile"
                         SettingsPage.Productivity -> stringResource(R.string.settings_productivity_summary)
+                        SettingsPage.Search -> "Suggestions, engine chips, auto-keyboard & calc"
+                        SettingsPage.Gestures -> "Gestures, Everything button & swipe actions"
                         SettingsPage.Themes -> stringResource(R.string.settings_themes_summary)
+                        SettingsPage.FeedScreen -> "Google News Feed & Widget Screen pages"
+                        SettingsPage.CustomShortcuts -> "Create shortcuts for hidden activities, sub-settings & tile"
+                        SettingsPage.Backup -> "Export & import launcher settings with timestamp"
                         SettingsPage.Advanced -> stringResource(R.string.settings_advanced_summary)
                         SettingsPage.Language -> appLanguageSummary(languageTag)
                         else -> stringResource(R.string.settings_about_summary)

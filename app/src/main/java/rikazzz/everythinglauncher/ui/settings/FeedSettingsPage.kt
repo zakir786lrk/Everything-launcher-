@@ -27,13 +27,21 @@ import rikazzz.everythinglauncher.R
 import rikazzz.everythinglauncher.data.LauncherCustomPreferences
 import rikazzz.everythinglauncher.data.feed.AVAILABLE_REGIONS
 import rikazzz.everythinglauncher.data.feed.NewsTopic
+import rikazzz.everythinglauncher.ui.LauncherActions
+import rikazzz.everythinglauncher.ui.LauncherUiState
+import rikazzz.everythinglauncher.ui.components.LauncherIcon
+import rikazzz.everythinglauncher.ui.components.LauncherSymbol
 
 @Composable
 internal fun FeedSettingsPage(
+    uiState: LauncherUiState,
+    actions: LauncherActions,
     customPrefs: LauncherCustomPreferences,
     onBack: () -> Unit
 ) {
     var feedEnabled by remember { mutableStateOf(customPrefs.feedScreenEnabled) }
+    var widgetEnabled by remember { mutableStateOf(uiState.settings.widgetScreen.enabled) }
+    var swipeAppRight by remember { mutableStateOf(customPrefs.swipeAppRightToOpenPopup) }
     var showSearch by remember { mutableStateOf(customPrefs.feedShowSearchBar) }
     var showWeather by remember { mutableStateOf(customPrefs.feedShowWeather) }
     var selectedRegionCode by remember { mutableStateOf(customPrefs.feedRegion) }
@@ -49,26 +57,19 @@ internal fun FeedSettingsPage(
         NewsTopic.fromId(selectedTopicId).label
     }
 
-    SettingsScaffold(stringResource(R.string.settings_feed_screen), "feed_screen_settings", onBack) { padding ->
+    SettingsScaffold("Feed & Home Pages", "feed_screen_settings", onBack) { padding ->
         SettingsList(padding) {
-            item {
-                SettingsFeatureBanner(
-                    title = stringResource(R.string.feed_screen_enable),
-                    checked = feedEnabled,
-                    tag = "feed_screen_enabled"
-                ) { enabled ->
-                    feedEnabled = enabled
-                    customPrefs.feedScreenEnabled = enabled
-                }
-            }
+            // 1. Pages Configuration
+            item { SettingsHeading("Home Screen Pages") }
             item {
                 SettingsToggleItem(
-                    title = stringResource(R.string.feed_screen_swipe),
-                    summary = if (feedEnabled) null else stringResource(R.string.feed_screen_swipe_disabled),
+                    title = "Left Page: Google News Feed",
+                    summary = if (feedEnabled) "Accessible by swiping right from Home" else "Left page is hidden",
                     checked = feedEnabled,
                     index = 0,
-                    count = 5,
-                    tag = "feed_screen_swipe"
+                    count = 2,
+                    tag = "feed_page_toggle",
+                    leading = { LauncherIcon(LauncherSymbol.Outbound) }
                 ) { enabled ->
                     feedEnabled = enabled
                     customPrefs.feedScreenEnabled = enabled
@@ -76,50 +77,87 @@ internal fun FeedSettingsPage(
             }
             item {
                 SettingsToggleItem(
-                    title = stringResource(R.string.feed_show_search),
-                    summary = stringResource(R.string.feed_show_search_summary),
-                    checked = showSearch,
+                    title = "Right Page: Widget Screen",
+                    summary = if (widgetEnabled) "Accessible by swiping left from Home" else "Right page is hidden",
+                    checked = widgetEnabled,
                     index = 1,
-                    count = 5,
-                    tag = "feed_show_search"
-                ) { show ->
-                    showSearch = show
-                    customPrefs.feedShowSearchBar = show
+                    count = 2,
+                    tag = "widget_page_toggle",
+                    leading = { LauncherIcon(LauncherSymbol.Widgets) }
+                ) { enabled ->
+                    widgetEnabled = enabled
+                    actions.updateSettings { it.copy(widgetScreen = it.widgetScreen.copy(enabled = enabled)) }
                 }
             }
+
+            // 2. Gesture Handling
+            item { SettingsHeading("Page Swipe Gestures") }
             item {
                 SettingsToggleItem(
-                    title = stringResource(R.string.feed_show_weather),
-                    summary = stringResource(R.string.feed_show_weather_summary),
-                    checked = showWeather,
-                    index = 2,
-                    count = 5,
-                    tag = "feed_show_weather"
-                ) { show ->
-                    showWeather = show
-                    customPrefs.feedShowWeather = show
+                    title = "Swipe App Right for Shortcuts",
+                    summary = if (swipeAppRight) "Enabled (may intercept swipe-to-feed when starting drag on an app)"
+                              else "Disabled (recommended: allows smooth right-swipe across entire home screen to open Feed)",
+                    checked = swipeAppRight,
+                    index = 0,
+                    count = 1,
+                    tag = "swipe_app_right_toggle",
+                    leading = { LauncherIcon(LauncherSymbol.Gesture) }
+                ) { enabled ->
+                    swipeAppRight = enabled
+                    customPrefs.swipeAppRightToOpenPopup = enabled
                 }
             }
-            item {
-                SettingsActionItem(
-                    title = stringResource(R.string.feed_region),
-                    summary = currentRegionName,
-                    index = 3,
-                    count = 5,
-                    tag = "feed_region"
-                ) {
-                    showRegionDialog = true
+
+            // 3. News Feed Content
+            if (feedEnabled) {
+                item { SettingsHeading("Google News Feed Options") }
+                item {
+                    SettingsToggleItem(
+                        title = stringResource(R.string.feed_show_search),
+                        summary = stringResource(R.string.feed_show_search_summary),
+                        checked = showSearch,
+                        index = 0,
+                        count = 4,
+                        tag = "feed_show_search"
+                    ) { show ->
+                        showSearch = show
+                        customPrefs.feedShowSearchBar = show
+                    }
                 }
-            }
-            item {
-                SettingsActionItem(
-                    title = stringResource(R.string.feed_default_topic),
-                    summary = currentTopicName,
-                    index = 4,
-                    count = 5,
-                    tag = "feed_default_topic"
-                ) {
-                    showTopicDialog = true
+                item {
+                    SettingsToggleItem(
+                        title = stringResource(R.string.feed_show_weather),
+                        summary = stringResource(R.string.feed_show_weather_summary),
+                        checked = showWeather,
+                        index = 1,
+                        count = 4,
+                        tag = "feed_show_weather"
+                    ) { show ->
+                        showWeather = show
+                        customPrefs.feedShowWeather = show
+                    }
+                }
+                item {
+                    SettingsActionItem(
+                        title = stringResource(R.string.feed_region),
+                        summary = currentRegionName,
+                        index = 2,
+                        count = 4,
+                        tag = "feed_region"
+                    ) {
+                        showRegionDialog = true
+                    }
+                }
+                item {
+                    SettingsActionItem(
+                        title = stringResource(R.string.feed_default_topic),
+                        summary = currentTopicName,
+                        index = 3,
+                        count = 4,
+                        tag = "feed_default_topic"
+                    ) {
+                        showTopicDialog = true
+                    }
                 }
             }
         }
@@ -130,13 +168,8 @@ internal fun FeedSettingsPage(
             onDismissRequest = { showRegionDialog = false },
             title = { Text(stringResource(R.string.feed_region)) },
             text = {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 360.dp)
-                ) {
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 350.dp)) {
                     items(AVAILABLE_REGIONS) { region ->
-                        val isSelected = region.code == selectedRegionCode
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -145,18 +178,18 @@ internal fun FeedSettingsPage(
                                     customPrefs.feedRegion = region.code
                                     showRegionDialog = false
                                 }
-                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                                .padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
-                                selected = isSelected,
+                                selected = selectedRegionCode == region.code,
                                 onClick = {
                                     selectedRegionCode = region.code
                                     customPrefs.feedRegion = region.code
                                     showRegionDialog = false
                                 }
                             )
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(8.dp))
                             Text(region.name, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
@@ -175,13 +208,8 @@ internal fun FeedSettingsPage(
             onDismissRequest = { showTopicDialog = false },
             title = { Text(stringResource(R.string.feed_default_topic)) },
             text = {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 360.dp)
-                ) {
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 350.dp)) {
                     items(NewsTopic.entries) { topic ->
-                        val isSelected = topic.id == selectedTopicId
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -190,18 +218,18 @@ internal fun FeedSettingsPage(
                                     customPrefs.feedDefaultTopic = topic.id
                                     showTopicDialog = false
                                 }
-                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                                .padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
-                                selected = isSelected,
+                                selected = selectedTopicId == topic.id,
                                 onClick = {
                                     selectedTopicId = topic.id
                                     customPrefs.feedDefaultTopic = topic.id
                                     showTopicDialog = false
                                 }
                             )
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(8.dp))
                             Text(topic.label, style = MaterialTheme.typography.bodyLarge)
                         }
                     }

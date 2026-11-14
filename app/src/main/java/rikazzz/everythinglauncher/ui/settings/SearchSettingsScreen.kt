@@ -43,6 +43,7 @@ internal fun SearchSettingsScreen(uiState: LauncherUiState, actions: LauncherAct
     var recentInstalledEnabled by remember { mutableStateOf(customPrefs.searchShowRecentlyInstalled) }
     var recentOpenedEnabled by remember { mutableStateOf(customPrefs.searchShowRecentlyOpened) }
     var freqOpenedEnabled by remember { mutableStateOf(customPrefs.searchShowFrequentlyOpened) }
+    var searchAutoOpenKeyboard by remember { mutableStateOf(customPrefs.searchAutoOpenKeyboard) }
     var hiddenChips by remember { mutableStateOf(customPrefs.hiddenEngineChips) }
     var showChipsDialog by remember { mutableStateOf(false) }
 
@@ -75,6 +76,18 @@ internal fun SearchSettingsScreen(uiState: LauncherUiState, actions: LauncherAct
             item {
                 SettingsFeatureBanner(stringResource(R.string.search_enable), settings.enabled, "search_enabled") { value ->
                     update { it.copy(enabled = value) }
+                }
+            }
+
+            // Search Behavior
+            item { SettingsHeading("Search Behavior") }
+            item {
+                SettingsToggleItem(
+                    "Auto-Open Keyboard", "Automatically open the keyboard when search opens",
+                    searchAutoOpenKeyboard, 0, 1, "search_auto_open_keyboard", enabled = settings.enabled
+                ) { value ->
+                    searchAutoOpenKeyboard = value
+                    customPrefs.searchAutoOpenKeyboard = value
                 }
             }
 

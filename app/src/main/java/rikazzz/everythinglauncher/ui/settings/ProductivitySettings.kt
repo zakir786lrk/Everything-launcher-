@@ -29,6 +29,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -77,7 +78,11 @@ internal fun ProductivitySettings(
     val settings = uiState.settings
     val context = LocalContext.current
     val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
-    var stopFavoritesScroll by remember { mutableStateOf(customPrefs.stopFavoritesScrollingWhenFitting) }
+    var overflowMode by remember { mutableStateOf(customPrefs.favoritesOverflowMode) }
+    var maxVisibleCount by remember { mutableIntStateOf(customPrefs.favoritesMaxVisibleCount) }
+    var overflowFolderName by remember { mutableStateOf(customPrefs.favoritesOverflowFolderName) }
+    var drawerAutoOpenKeyboard by remember { mutableStateOf(customPrefs.drawerAutoOpenKeyboard) }
+    var swipeAppRight by remember { mutableStateOf(customPrefs.swipeAppRightToOpenPopup) }
     SettingsScaffold(stringResource(R.string.settings_productivity), "settings_productivity", onBack) { padding ->
         SettingsList(padding) {
             item { SettingsHeading(stringResource(R.string.settings_instant_access)) }
@@ -133,19 +138,57 @@ internal fun ProductivitySettings(
                     leading = { LauncherIcon(LauncherSymbol.Home) }) { navigate(SettingsPage.Homepage) }
             }
             item {
+                val totalScreenItems = if (overflowMode == "folder") 8 else 7
                 SettingsToggleItem(
-                    "Stop Scrolling When Favorites Fit",
-                    "Stop scrolling home screen favorite apps if they are a fixed number and fit without scrolling",
-                    stopFavoritesScroll, 1, 6, "stop_favorites_scrolling",
-                    leading = { LauncherIcon(LauncherSymbol.Move) }
+                    "Group Overflow Apps in Folder",
+                    if (overflowMode == "folder") "Extra apps beyond $maxVisibleCount are moved into a '${overflowFolderName.ifBlank { "More" }}' folder"
+                    else "All favorite apps scroll freely on the home screen",
+                    overflowMode == "folder", 1, totalScreenItems, "favorites_overflow_mode",
+                    leading = { LauncherIcon(LauncherSymbol.Folder) }
                 ) { checked ->
-                    stopFavoritesScroll = checked
-                    customPrefs.stopFavoritesScrollingWhenFitting = checked
+                    val newMode = if (checked) "folder" else "scroll"
+                    overflowMode = newMode
+                    customPrefs.favoritesOverflowMode = newMode
+                }
+            }
+            if (overflowMode == "folder") {
+                item {
+                    SettingsActionItem(
+                        "Max Visible Favorites",
+                        "$maxVisibleCount apps before moving into folder (tap to cycle: 4, 6, 8, 10, 12)",
+                        2, 8, "favorites_max_visible",
+                        leading = { LauncherIcon(LauncherSymbol.Apps) }
+                    ) {
+                        val next = when (maxVisibleCount) {
+                            4 -> 6
+                            6 -> 8
+                            8 -> 10
+                            10 -> 12
+                            else -> 4
+                        }
+                        maxVisibleCount = next
+                        customPrefs.favoritesMaxVisibleCount = next
+                    }
                 }
             }
             item {
-                SettingsActionItem(stringResource(R.string.settings_folder_app_list), null, 2, 6, "settings_app_list",
+                val totalScreenItems = if (overflowMode == "folder") 8 else 7
+                val idx = if (overflowMode == "folder") 3 else 2
+                SettingsActionItem(stringResource(R.string.settings_folder_app_list), null, idx, totalScreenItems, "settings_app_list",
                     leading = { LauncherIcon(LauncherSymbol.Apps) }) { navigate(SettingsPage.AppList) }
+            }
+            item {
+                val totalScreenItems = if (overflowMode == "folder") 8 else 7
+                val idx = if (overflowMode == "folder") 4 else 3
+                SettingsToggleItem(
+                    "Auto-Open Keyboard in Drawer",
+                    "Automatically show keyboard and open search when opening the app drawer",
+                    drawerAutoOpenKeyboard, idx, totalScreenItems, "drawer_auto_keyboard",
+                    leading = { LauncherIcon(LauncherSymbol.Search) }
+                ) { checked ->
+                    drawerAutoOpenKeyboard = checked
+                    customPrefs.drawerAutoOpenKeyboard = checked
+                }
             }
             item {
                 SettingsActionItem(stringResource(R.string.widget_screen_title), null, 3, 6, "settings_widget_screen",
