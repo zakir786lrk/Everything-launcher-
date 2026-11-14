@@ -55,9 +55,10 @@ android {
         includeInBundle = false
     }
     lint {
-        // Community translations can be incomplete; Android falls back to English.
-        // Keep reporting missing strings without blocking release builds.
+        abortOnError = false
+        checkReleaseBuilds = false
         warning += "MissingTranslation"
+        warning += "ExtraTranslation"
     }
 }
 

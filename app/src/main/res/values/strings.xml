@@ -1190,6 +1190,9 @@
     <string name="agenda_supporting_information">Supporting information</string>
     <string name="agenda_tasks_first">Show tasks first</string>
     <string name="agenda_hourly_weather">Hourly weather</string>
+    <string name="agenda_undated_content">Undated task content</string>
+    <string name="agenda_new_event_button">Add event button</string>
+    <string name="agenda_new_task_button">Add task button</string>
     <string name="agenda_undated_tasks">Tasks without a due date</string>
     <string name="agenda_today_heading">Today</string>
     <string name="agenda_choose_create_action">Choose what to add</string>
