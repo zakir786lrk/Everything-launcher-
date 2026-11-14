@@ -42,6 +42,72 @@ object QuickSearchEngineRegistry {
 
     fun launch(context: Context, query: String, engineId: String = "google") {
         val engine = getEngine(engineId)
+        val trimmed = query.trim()
+
+        // 1. Specialized handling for Gemini app (com.google.android.apps.bard)
+        // Gemini's deep link URL handler does not parse URL query parameters, but
+        // its Android app accepts prompt text directly into the input box via ACTION_SEND.
+        if (engine.id == "gemini") {
+            val isInstalled = try {
+                context.packageManager.getPackageInfo("com.google.android.apps.bard", 0) != null
+            } catch (e: Exception) {
+                false
+            }
+
+            if (isInstalled) {
+                if (trimmed.isNotEmpty()) {
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, trimmed)
+                        putExtra(Intent.EXTRA_PROCESS_TEXT, trimmed)
+                        putExtra("query", trimmed)
+                        setPackage("com.google.android.apps.bard")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    try {
+                        context.startActivity(sendIntent)
+                        return
+                    } catch (e: Exception) {
+                        // Fall back to web URL below
+                    }
+                } else {
+                    val launchIntent = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.bard")
+                    if (launchIntent != null) {
+                        try {
+                            context.startActivity(launchIntent)
+                            return
+                        } catch (e: Exception) {
+                            // Fall back to web URL below
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Specialized handling for Claude app (com.anthropic.claude) if installed
+        if (engine.id == "claude" && trimmed.isNotEmpty()) {
+            val isInstalled = try {
+                context.packageManager.getPackageInfo("com.anthropic.claude", 0) != null
+            } catch (e: Exception) {
+                false
+            }
+            if (isInstalled) {
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, trimmed)
+                    setPackage("com.anthropic.claude")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                try {
+                    context.startActivity(sendIntent)
+                    return
+                } catch (e: Exception) {
+                    // Fall back to web URL below
+                }
+            }
+        }
+
+        // 3. Default ACTION_VIEW with URL
         val url = engine.buildSearchUrl(query)
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
