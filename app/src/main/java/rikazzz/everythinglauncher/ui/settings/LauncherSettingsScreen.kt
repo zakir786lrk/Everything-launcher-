@@ -435,6 +435,7 @@ private fun SettingsHome(
 ) {
     val showDefaultHomeBanner = isDefaultHome == false
     val languageTag by rememberAppLanguage()
+    val langSummary = appLanguageSummary(languageTag)
     var searchQuery by remember { mutableStateOf("") }
 
     val categories = listOf(
@@ -450,7 +451,7 @@ private fun SettingsHome(
         SettingsPage.About to LauncherSymbol.Info,
     )
 
-    val searchableItems = remember(languageTag) {
+    val searchableItems = remember(langSummary) {
         listOf(
             SearchableSetting("Folders", "Organize apps into folders and home categories", "Productivity", SettingsPage.Folders, listOf("folder", "categories", "home", "drawer"), LauncherSymbol.Folder),
             SearchableSetting("App Stacks", "Swipeable app piles and dock shortcuts", "Productivity", SettingsPage.AppStacks, listOf("stack", "dock", "pile"), LauncherSymbol.Apps),
@@ -480,7 +481,7 @@ private fun SettingsHome(
             SearchableSetting("Weather Forecast", "Weather forecast days, Open-Meteo source, and weather app", "Advanced", SettingsPage.Weather, listOf("weather", "forecast", "temp", "celsius", "fahrenheit"), LauncherSymbol.Weather),
             SearchableSetting("Media Player Widget", "Media notification player controls, styling, and keep on pause", "Advanced", SettingsPage.MediaPlayer, listOf("media", "music", "player", "audio", "spotify"), LauncherSymbol.Music),
             SearchableSetting("Digital Wellbeing", "Screen time, app launch limits, and usage analytics", "Advanced", SettingsPage.DigitalWellbeing, listOf("wellbeing", "usage", "screen time", "focus"), LauncherSymbol.Hourglass),
-            SearchableSetting("Language", appLanguageSummary(languageTag), "System", SettingsPage.Language, listOf("language", "locale", "translation"), LauncherSymbol.Language),
+            SearchableSetting("Language", langSummary, "System", SettingsPage.Language, listOf("language", "locale", "translation"), LauncherSymbol.Language),
             SearchableSetting("About Everything Launcher", "App version, changelog, and open-source licenses", "System", SettingsPage.About, listOf("about", "version", "changelog", "licenses", "github"), LauncherSymbol.Info),
         )
     }
