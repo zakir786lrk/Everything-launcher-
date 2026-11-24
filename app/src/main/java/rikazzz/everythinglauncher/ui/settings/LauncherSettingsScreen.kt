@@ -5,7 +5,6 @@ package rikazzz.everythinglauncher.ui.settings
 import rikazzz.everythinglauncher.ui.theme.LocalFontShadowEnabled
 import android.os.Build
 import android.net.Uri
-import android.os.Build
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.ui.platform.LocalContext
 import rikazzz.everythinglauncher.data.LauncherCustomPreferences

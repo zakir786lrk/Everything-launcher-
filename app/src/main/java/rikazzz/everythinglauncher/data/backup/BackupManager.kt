@@ -2,7 +2,6 @@ package rikazzz.everythinglauncher.data.backup
 
 import android.content.Context
 import android.util.Base64
-import androidx.core.content.edit
 import androidx.room.withTransaction
 import java.io.File
 import org.json.JSONArray
@@ -200,7 +199,9 @@ object BackupManager {
         if (root.has("custom_preferences") && customPreferencesName != null) {
             val prefs = context.getSharedPreferences(customPreferencesName, Context.MODE_PRIVATE)
             val setupDone = prefs.getBoolean("first_time_setup_done", true)
-            prefs.edit(commit = true) { clear(); putBoolean("first_time_setup_done", setupDone) }
+            if (!prefs.edit().clear().putBoolean("first_time_setup_done", setupDone).commit()) {
+                throw LauncherBackupException("Could not write preferences.")
+            }
             val customPrefs = LauncherCustomPreferences(prefs)
             if (!customPrefs.importFromJson(root.getJSONObject("custom_preferences"), commitSync = true)) {
                 throw LauncherBackupException("Could not write preferences.")
@@ -209,7 +210,7 @@ object BackupManager {
 
         if (root.has("appearance")) {
             val appObj = root.getJSONObject("appearance")
-            val ok = context.getSharedPreferences(LauncherPreferences.FILE_NAME, Context.MODE_PRIVATE).edit(commit = true) {
+            val ok = context.getSharedPreferences(LauncherPreferences.FILE_NAME, Context.MODE_PRIVATE).edit().apply {
                 if (appObj.has("text_mode")) {
                     val modeName = appObj.getString("text_mode")
                     WallpaperTextMode.entries.firstOrNull { it.name == modeName }?.let { putString("text_mode", it.name) }
@@ -231,7 +232,7 @@ object BackupManager {
                         if (cat.isBlank()) remove("category:$key") else putString("category:$key", cat.trim())
                     }
                 }
-            }
+            }.commit()
             if (!ok) throw LauncherBackupException("Could not write preferences.")
         }
 
@@ -239,10 +240,10 @@ object BackupManager {
         if (favsKey != null) {
             val hArray = root.getJSONArray(favsKey)
             val keys = (0 until hArray.length()).map { hArray.getString(it) }.filter(String::isNotBlank).distinct()
-            val ok = context.getSharedPreferences(FavoritesStore.FILE_NAME, Context.MODE_PRIVATE).edit(commit = true) {
+            val ok = context.getSharedPreferences(FavoritesStore.FILE_NAME, Context.MODE_PRIVATE).edit().apply {
                 putString("favorite_component_order", JSONArray(keys).toString())
                 putStringSet("favorite_components", keys.toSet())
-            }
+            }.commit()
             if (!ok) throw LauncherBackupException("Could not write preferences.")
         }
         afterStep("preferences")
