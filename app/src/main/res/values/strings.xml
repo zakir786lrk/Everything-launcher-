@@ -5,6 +5,7 @@
     <string name="tasks_enable">Enable Tasks.org</string>
     <string name="tasks_connection">Connection</string>
     <string name="tasks_data">Task data</string>
+    <string name="tasks_show_overdue">Show overdue tasks</string>
     <string name="tasks_sorting">Task order</string>
     <string name="tasks_sort_by">Sort by</string>
     <string name="tasks_undated_first">Undated tasks first</string>
@@ -77,9 +78,13 @@
     <string name="calendar_hidden">Hidden in the system calendar</string>
     <string name="calendar_open_events">Open events</string>
     <string name="calendar_app">Default calendar app</string>
+    <string name="calendar_date_tap">Date tap</string>
+    <string name="calendar_date_tap_calendar">Tap opens calendar</string>
+    <string name="calendar_date_long_press_calendar">Long press opens calendar</string>
     <string name="calendar_system_default_app">System default</string>
     <string name="calendar_choose_app_description">Choose the app used to open calendar events.</string>
     <string name="calendar_read_days">Days to read ahead</string>
+    <string name="calendar_no_events_today">No events today</string>
     <string name="calendar_deprioritize_all_day">Lower priority for all-day events</string>
     <string name="calendar_deprioritize_all_day_summary">Show timed events before all-day events on the same day</string>
     <string name="calendar_display">Display</string>
@@ -206,7 +211,7 @@
     <string name="private_space_indicator_summary">Show a badge on private app icons</string>
     <string name="private_space_lock_immediately">Lock immediately</string>
     <string name="private_space_lock_on_exit">Close automatically when leaving the list</string>
-    <string name="private_space_lock_on_screen">Keep unlocked until the screen locks</string>
+    <string name="private_space_lock_on_screen">Follow the system’s automatic locking settings</string>
     <string name="private_space_display_folder">Folder</string>
     <string name="private_space_edit">Edit</string>
     <string name="private_space_edit_summary">Change the name, icon and app order</string>
@@ -274,7 +279,7 @@
     <string name="icon_edit_failed">Couldn’t save this icon. Please try another image or icon.</string>
     <string name="edit_app_popup">Edit %1$s pop-up</string>
     <string name="popup_app_shortcuts">%1$s shortcuts</string>
-    <string name="popup_custom_widget">Custom widget</string>
+    <string name="popup_custom_widget">Widgets</string>
     <string name="popup_add_new">Add new</string>
     <string name="popup_show_in_app_list">Show in app list</string>
     <string name="popup_empty">Choose shortcuts, apps or widgets below.</string>
@@ -316,6 +321,7 @@
     <!-- Search and app drawer -->
     <string name="search_apps">Search apps</string>
     <string name="search_no_results">No matching apps</string>
+    <string name="app_archived_label">Archived</string>
     <string name="launcher_fab_description">Search apps. Touch and hold for settings.</string>
     <string name="drawer_folders">Folders</string>
     <string name="recently_installed">Recently Installed</string>
@@ -346,7 +352,8 @@
     <string name="app_category_condition">Show when</string>
     <string name="app_category_always">Always</string>
     <string name="app_category_headphones">Headphones are connected</string>
-    <string name="app_category_time">Daily time range</string>
+    <string name="app_category_time">Time range</string>
+    <string name="app_category_all_day">All day</string>
     <string name="app_category_start">Start time</string>
     <string name="app_category_end">End time</string>
     <string name="app_category_delete">Delete category</string>
@@ -364,6 +371,19 @@
     <string name="empty_folder">No apps in this folder</string>
 
     <!-- Notifications -->
+    <string name="popup_notification_actions">Action buttons</string>
+    <string name="popup_notification_direct_reply">Direct reply</string>
+    <string name="popup_notification_suggested_replies">Suggested replies</string>
+    <string name="popup_notification_progress">Progress notifications</string>
+    <string name="notification_wider_details">Wider notification details</string>
+    <string name="notification_wider_details_summary">Use the full width below the avatar in pop-ups</string>
+    <string name="notification_reply_hint">Type a reply…</string>
+    <string name="notification_reply_send">Send reply</string>
+    <string name="notification_reply_close">Close reply</string>
+    <string name="notification_reply_sent">Reply sent</string>
+    <string name="notification_action_failed">This action is no longer available. Open the app to continue.</string>
+    <string name="notification_unlock_required">Unlock your device to continue</string>
+    <string name="notification_progress_label">Progress</string>
     <string name="notification_dismiss">Dismiss</string>
     <string name="notification_now">now</string>
     <string name="notification_minutes">%1$dm</string>
@@ -424,6 +444,8 @@
     <string name="settings_language">Language</string>
     <string name="settings_allow_screen_rotation">Allow screen rotation</string>
     <string name="settings_allow_screen_rotation_summary">Follow system rotation settings. Turn off to keep the home screen in portrait.</string>
+    <string name="settings_remember_screen_position">Remember screen position</string>
+    <string name="settings_remember_screen_position_summary">Keep the last screen after unlocking or returning from an app. Turn off to return to the home screen.</string>
     <string name="settings_tablets_foldables">Tablets &amp; foldables</string>
     <string name="settings_lab">Lab</string>
     <string name="lab_accessibility">Accessibility</string>
@@ -432,7 +454,7 @@
     <string name="settings_debug">Debug</string>
     <string name="lab_animation">Animation</string>
     <string name="lab_swipe_sensitivity">Swipe sensitivity</string>
-    <string name="lab_swipe_sensitivity_summary">Higher values make home-screen swipes and swiping down to close search easier to trigger. 100% keeps the default distance and speed thresholds.</string>
+    <string name="lab_swipe_sensitivity_summary" formatted="false">Higher values make home-screen swipes and swiping down to close search easier to trigger. 100% keeps the default distance and speed thresholds.</string>
     <string name="lab_double_tap_interval">Double-tap interval</string>
     <string name="lab_double_tap_interval_summary">Maximum time between taps on empty home-screen space. A longer interval makes double-tapping easier.</string>
     <string name="lab_milliseconds">%1$d ms</string>
@@ -749,8 +771,10 @@
     <!-- Clock style -->
     <string name="clock_style_apply">Apply</string>
     <string name="clock_layout">Clock layout</string>
-    <string name="clock_single_line">Single line</string>
-    <string name="clock_two_lines">Two lines</string>
+    <string name="clock_single_line">Horizontal</string>
+    <string name="clock_two_lines">Vertical</string>
+    <string name="clock_minute_scale">Minute font scale</string>
+    <string name="clock_second_scale">Second font scale</string>
     <string name="clock_week" translatable="false">Week</string>
     <string name="clock_sacramento" translatable="false">Sacramento</string>
     <string name="clock_bokor" translatable="false">Bokor</string>
@@ -826,10 +850,13 @@
     <string name="widget_move_home">Move the clock and app list</string>
     <string name="widget_resize">Resize widget</string>
     <string name="grace_widgets_title">Everything widgets</string>
+    <string name="grace_widgets_add">Add Everything widgets</string>
     <string name="grace_widget_baseline">Baseline (invisible)</string>
     <string name="popup_widget_full_width">Full width</string>
     <string name="popup_widget_background">Background</string>
-    <string name="popup_widget_content_scale">Content scale · %1$d%%</string>
+    <string name="popup_widget_background_color">Background color</string>
+    <string name="popup_widget_background_opacity">Background opacity</string>
+    <string name="popup_widget_content_scale">Content · %1$d%%</string>
     <string name="widget_adjust_up">Move up / decrease height</string>
     <string name="widget_adjust_down">Move down / increase height</string>
     <string name="widget_calendar">Calendar</string>
@@ -873,8 +900,6 @@
     <string name="shortcuts_folders_title">Shortcuts &amp; folders</string>
     <string name="popups_title">Pop-ups</string>
     <string name="shortcuts_folders_enable">Enable app pop-ups</string>
-    <string name="popup_swipe_left_first">Swipe left to open the first item</string>
-    <string name="popup_swipe_left_first_summary">Open the first shortcut, app, or widget’s app in the pop-up</string>
     <string name="popup_silent_notifications">Silent notifications</string>
     <string name="popup_normal_notifications">Normal notifications</string>
     <string name="popup_single_line_previews">Single-line notification previews</string>
@@ -932,6 +957,7 @@
     <string name="widget_screen_swipe_disabled">You can open this screen using a gesture or an Everything button action</string>
     <string name="widget_screen_columns">Cells per row</string>
     <string name="widget_screen_edit">Edit widget screen</string>
+    <string name="widget_screen_add_items">Add apps, shortcuts &amp; widgets</string>
     <string name="widget_screen_open">Open widget screen</string>
     <string name="app_stacks_title">App stacks</string>
     <string name="app_stack_create">Create app stack</string>
@@ -953,6 +979,9 @@
     <string name="lab_dp">%1$d dp</string>
     <string name="lab_degrees">±%1$d°</string>
     <string name="favorites_lock_editing">Lock editing</string>
+    <string name="favorites_list_stretch">Allow scrolling the home list</string>
+    <string name="home_list_heading">Home list</string>
+    <string name="home_layout_heading">Home layout</string>
     <string name="widget_settings_button">Settings</string>
     <string name="widget_bind_error">Couldn’t bind this widget. Please try again.</string>
     <string name="widget_configuration_launch_error">Couldn’t open this widget’s settings. Please try again.</string>
@@ -960,7 +989,7 @@
     <string name="media_keep_while_playing_summary">Swipes spring back instead of dismissing the player during playback</string>
     <string name="lab_swipe_dismiss">Swipe to dismiss</string>
     <string name="lab_dismiss_resistance">Swipe resistance</string>
-    <string name="lab_dismiss_resistance_summary">Shared by notifications and the media player. Higher values create more resistance; 0% follows your finger.</string>
+    <string name="lab_dismiss_resistance_summary" formatted="false">Shared by notifications and the media player. Higher values create more resistance; 0% follows your finger.</string>
     <string name="lab_dismiss_threshold">Breakthrough threshold</string>
     <string name="lab_dismiss_threshold_summary">Distance before resistance releases. Shared by notifications and the media player; limited by the available width.</string>
     <string name="font_color_default">Default font color</string>
@@ -1024,6 +1053,8 @@
     <string name="clock_equal_width_characters">Equal character widths</string>
     <string name="clock_center_characters">Center characters</string>
     <string name="clock_use_latin_letters">Always use Latin letters</string>
+    <string name="clock_use_relative_dates">Use relative dates</string>
+    <string name="clock_use_relative_dates_summary">Show today and tomorrow instead of their dates</string>
     <string name="clock_layout_section">Layout</string>
     <string name="clock_show_clock">Show clock</string>
     <string name="clock_show_weekday">Show weekday</string>
@@ -1082,9 +1113,11 @@
     <string name="category_open_dw">Open Digital wellbeing</string>
     <string name="app_list_bottom_folders">Bottom folders</string>
     <string name="app_list_edit">Edit app list</string>
+    <string name="app_list_align_with_home">Align with home</string>
     <string name="app_list_grace_settings">Everything settings</string>
     <string name="app_list_add_grace">Everything launcher</string>
     <string name="alphabet_show_in">Show in</string>
+    <string name="list_hide_symbol">Hide symbol</string>
     <string name="list_symbol_horizontal_offset">Symbol horizontal offset</string>
     <string name="alphabet_touch_area">Show touch area</string>
     <string name="alphabet_touch_width">Right touch width</string>
@@ -1093,6 +1126,9 @@
     <string name="clock_tertiary_region">Tertiary region</string>
     <string name="clock_agenda_region">Agenda region</string>
     <string name="clock_region_spacing">Region spacing</string>
+    <string name="clock_bottom_padding">Bottom padding</string>
+    <string name="clock_expand_group">Expand group</string>
+    <string name="clock_collapse_group">Collapse group</string>
     <string name="clock_agenda_contents">Agenda content</string>
     <string name="clock_agenda_event_count">Number of events</string>
     <string name="clock_agenda_unlimited">Unlimited</string>
@@ -1130,13 +1166,20 @@
     <string name="weather_field_wind_speed">Wind speed</string>
     <string name="weather_field_wind_direction">Wind direction</string>
     <string name="weather_chart">Chart</string>
-    <string name="weather_show_chart">Show %1$s chart</string>
-    <string name="weather_hide_chart">Hide %1$s chart</string>
-    <string name="weather_chart_always_expanded">Always expand charts</string>
+    <string name="weather_chart_always_expanded">Always expand</string>
+    <string name="weather_hour_show_text">Show text</string>
+    <string name="weather_hour_use_value_color">Use value color</string>
+    <string name="weather_hour_show_chart">Show in chart</string>
+    <string name="weather_chart_bar">Bar chart</string>
+    <string name="weather_chart_line">Line chart</string>
+    <string name="weather_chart_wavy">Use wavy line</string>
+    <string name="weather_chart_bar_width">Bar width</string>
+    <string name="weather_hour_always_show">Always show</string>
     <string name="weather_chart_height">Chart height</string>
+    <string name="weather_hour_column_width">Column width</string>
     <string name="weather_chart_height_value">%1$d dp</string>
-    <string name="weather_chart_expand">Expand charts</string>
-    <string name="weather_chart_collapse">Collapse charts</string>
+    <string name="weather_chart_expand">Expand</string>
+    <string name="weather_chart_collapse">Collapse</string>
     <string name="weather_field_precipitation_probability">Precipitation probability</string>
     <string name="weather_field_rain_probability">Rain probability</string>
     <string name="weather_field_snow_probability">Snow probability</string>
@@ -1182,7 +1225,7 @@
     <string name="agenda_title_time">Current time</string>
     <string name="agenda_title_quote">Quote</string>
     <string name="agenda_title_text">Custom text</string>
-    <string name="agenda_widget_region">Widget region</string>
+    <string name="agenda_widget_region">Widgets</string>
     <string name="agenda_daily">Daily</string>
     <string name="agenda_daily_content">Daily content</string>
     <string name="agenda_calendar_content">Calendar content</string>
@@ -1198,4 +1241,69 @@
     <string name="agenda_choose_create_action">Choose what to add</string>
     <string name="agenda_new_task">New task</string>
     <string name="agenda_unsaved_message">Your agenda changes haven’t been saved.</string>
+    <string name="widget_stacks_title">Widget stacks</string>
+    <string name="widget_stack_create">Add widget stack</string>
+    <string name="widget_stacks_empty">Create a widget stack to keep several widgets in one place.</string>
+    <string name="widget_stack_edit">Edit widget stack</string>
+    <string name="widget_stack_name">Widget stack name</string>
+    <string name="widget_stack_placement">Show widget stack in</string>
+    <string name="widget_stack_delete">Delete widget stack</string>
+    <string name="widget_stack_delete_confirmation">Delete “%1$s” and its widgets?</string>
+    <string name="widget_stack_empty">Add widgets to this stack</string>
+    <string name="widget_stack_add">Add widget stack</string>
+    <string name="widget_stack_remove">Remove widget stack</string>
+    <string name="widget_stack_height">Stack height</string>
+    <string name="widget_stack_background_color">Background color</string>
+    <string name="widget_stack_opacity">Background opacity</string>
+    <string name="widget_stack_apply_background_all">Apply background color to all</string>
+    <string name="widget_stack_remove_widget_title">Remove widget</string>
+    <string name="widget_stack_remove_widget_confirmation">Remove “%1$s” from this stack?</string>
+    <string name="font_shadow_soft">Soft</string>
+    <string name="font_shadow_sharp">Sharp</string>
+    <string name="font_shadow_custom">Custom</string>
+    <string name="font_shadow_opacity">Shadow opacity</string>
+    <string name="font_shadow_blur">Blur</string>
+    <string name="font_shadow_offset_x">X offset</string>
+    <string name="font_shadow_offset_y">Y offset</string>
+    <string name="font_shadow_spread">Spread</string>
+    <string name="font_shadow_override">Override default shadow</string>
+    <string name="font_shadow_unsaved_message">Save changes to the font shadow before leaving?</string>
+    <string name="popup_notifications_heading">Notifications</string>
+    <string name="popup_gestures_heading">Gestures</string>
+    <string name="popup_action_open">Open pop-up</string>
+    <string name="popup_action_first_item">Open the first item</string>
+    <string name="popup_action_first_notification">Open the first notification</string>
+    <string name="popup_action_dismiss_first">Dismiss the first notification</string>
+    <string name="popup_action_dismiss_all">Dismiss all app notifications</string>
+    <string name="dismiss_notifications_title">Dismiss notifications?</string>
+    <plurals name="dismiss_notifications_message">
+        <item quantity="one">Dismiss %1$d notification? This can’t be undone.</item>
+        <item quantity="other">Dismiss all %1$d notifications? This can’t be undone.</item>
+    </plurals>
+    <string name="dismiss_notifications_confirm">Dismiss</string>
+    <string name="popup_double_tap_delay">Enabling double-tap gestures delays single taps.</string>
+    <string name="settings_backup">Backup and restore</string>
+    <string name="settings_backup_summary">Save and restore settings</string>
+    <string name="backup_export">Back up to file</string>
+    <string name="backup_export_summary">Save everything to a .zip file you choose</string>
+    <string name="backup_restore">Restore from file</string>
+    <string name="backup_restore_summary">Replace the current setup with a backup</string>
+    <string name="backup_restore_title">Replace current setup?</string>
+    <string name="backup_restore_message">Your layout, favorites, folders and settings will be replaced by the backup. The launcher will restart.</string>
+    <string name="backup_restore_confirm">Restore</string>
+    <string name="backup_exported">Backup saved.</string>
+    <string name="backup_export_failed">The backup could not be saved.</string>
+    <string name="backup_restore_failed">The backup could not be restored.</string>
+    <string name="home_screen_enable">Enable home screen</string>
+    <string name="home_disable_scrolling">Disable scrolling</string>
+    <string name="home_disable_scrolling_summary">Lock the home screen. Some home screen content may be hidden.</string>
+    <string name="home_disable_stretch">Disable stretch effect</string>
+    <string name="calendar_date_long_press">Date long press</string>
+    <string name="calendar_action_open_calendar">Open calendar</string>
+    <string name="calendar_action_open_agenda">Open agenda</string>
+    <string name="calendar_action_new_event">New event</string>
+    <string name="calendar_action_new_task">New task</string>
+    <string name="notification_reduce_repeated_senders">Reduce repeated sender information</string>
+    <string name="popup_confirm_multiple_apps">Confirm before clearing notifications from multiple apps</string>
+    <string name="backup_in_progress">Please wait…</string>
 </resources>

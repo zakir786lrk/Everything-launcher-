@@ -12,12 +12,14 @@ data class ClockRowTypography(
     val weight: Int = 400,
     val fontShadow: Int = 0,
     val fontId: String? = null,
+    val shadow: FontShadowOverride = FontShadowOverride.fromLegacy(fontShadow),
 ) {
     fun normalized() = copy(
         size = size.coerceIn(8, 72),
         weight = weight.coerceIn(100, 900),
         fontShadow = fontShadow.coerceIn(0, 24),
         fontId = fontId?.takeIf(String::isNotBlank),
+        shadow = shadow.normalized(),
     )
 }
 
@@ -46,6 +48,7 @@ data class ClockRegionRow(
                 put("size", row.typography.size)
                 put("weight", row.typography.weight)
                 put("fontShadow", row.typography.fontShadow)
+                put("shadow", row.typography.shadow.json())
                 put("fontId", row.typography.fontId ?: JSONObject.NULL)
             })
             put("showSeconds", row.showSeconds)
@@ -76,6 +79,8 @@ data class ClockRegionRow(
                 size = typography?.optInt("size", defaults.typography.size) ?: defaults.typography.size,
                 weight = typography?.optInt("weight", defaults.typography.weight) ?: defaults.typography.weight,
                 fontShadow = typography?.optInt("fontShadow", defaults.typography.fontShadow) ?: defaults.typography.fontShadow,
+                shadow = FontShadowOverride.decode(typography?.optJSONObject("shadow"),
+                    typography?.optInt("fontShadow", defaults.typography.fontShadow) ?: defaults.typography.fontShadow),
                 fontId = if (typography?.has("fontId") == true)
                     typography.optString("fontId").takeIf { it.isNotBlank() && it != "null" } else defaults.typography.fontId,
             ),
@@ -106,6 +111,7 @@ data class ClockRegions(
     val tasks: ClockTasks = ClockTasks(),
     val weather: ClockWeather = ClockWeather(),
     val battery: ClockBattery = ClockBattery(),
+    val bottomPadding: Int = 4,
 ) {
     fun face(element: ClockElement): ClockFaceStyle = (primaryFaces[element] ?: defaultFace(element)).normalized()
 
@@ -127,6 +133,7 @@ data class ClockRegions(
             tertiary = tertiary,
             regionOrder = completedOrder,
             regionSpacing = regionSpacing.coerceIn(0, 64),
+            bottomPadding = bottomPadding.coerceIn(0, 64),
             agenda = agenda.normalized(),
             tasks = tasks.normalized(),
             weather = weather.normalized(),
@@ -178,6 +185,7 @@ data class ClockRegions(
             put("rotatePrimary", regions.rotatePrimary)
             put("rotateAll", regions.rotateAll)
             put("regionSpacing", regions.regionSpacing)
+            put("bottomPadding", regions.bottomPadding)
             put("agenda", regions.agenda.json())
             put("tasks", regions.tasks.json())
             put("weather", regions.weather.json())
@@ -192,13 +200,18 @@ data class ClockRegions(
                         put("letterSpacing", face.letterSpacing)
                         put("hourMinuteSpacing", face.hourMinuteSpacing)
                         put("fontShadow", face.fontShadow)
+                        put("shadow", face.shadow.json())
                         put("showColon", face.showColon)
                         put("separateDigits", face.separateDigits)
                         put("showLeadingZero", face.showLeadingZero)
                         put("showSeconds", face.showSeconds)
-                        put("equalWidthDigits", face.equalWidthDigits)
-                        put("centerDigits", face.centerDigits)
+                        put("horizontalEqualWidthDigits", face.horizontalEqualWidthDigits)
+                        put("horizontalCenterDigits", face.horizontalCenterDigits)
+                        put("verticalEqualWidthDigits", face.verticalEqualWidthDigits)
+                        put("verticalCenterDigits", face.verticalCenterDigits)
                         put("useLatinLetters", face.useLatinLetters)
+                        put("minuteScale", face.minuteScale)
+                        put("secondScale", face.secondScale)
                     })
                 }
             })
@@ -248,6 +261,7 @@ data class ClockRegions(
         internal fun fromPreset(style: ClockStyle): ClockRegions = fromLegacy(style).copy(
             regionOrder = listOf(ClockRegion.Primary, ClockRegion.Secondary, ClockRegion.Tertiary, ClockRegion.Agenda, ClockRegion.Task),
             regionSpacing = 2,
+            bottomPadding = 4,
             tasks = ClockTasks(),
             agenda = ClockAgenda(
                 order = listOf(ClockAgendaField.Title, ClockAgendaField.Countdown, ClockAgendaField.Time,
@@ -284,6 +298,7 @@ data class ClockRegions(
                 rotateAll = if (json.has("rotateAll")) json.optBoolean("rotateAll", false)
                     else legacyRotation == "All",
                 regionSpacing = json.optInt("regionSpacing", defaults.regionSpacing),
+                bottomPadding = json.optInt("bottomPadding", defaults.bottomPadding),
                 agenda = ClockAgenda.decode(json.optJSONObject("agenda")),
                 tasks = ClockTasks.decode(json.optJSONObject("tasks")),
                 weather = ClockWeather.decode(json.optJSONObject("weather")),
@@ -303,13 +318,20 @@ data class ClockRegions(
                         letterSpacing = data.optInt("letterSpacing", face.letterSpacing),
                         hourMinuteSpacing = data.optInt("hourMinuteSpacing", face.hourMinuteSpacing),
                         fontShadow = data.optInt("fontShadow", face.fontShadow),
+                        shadow = FontShadowOverride.decode(data.optJSONObject("shadow"), data.optInt("fontShadow", face.fontShadow)),
                         showColon = data.optBoolean("showColon", face.showColon),
                         separateDigits = data.optBoolean("separateDigits", face.separateDigits),
                         showLeadingZero = data.optBoolean("showLeadingZero", face.showLeadingZero),
                         showSeconds = data.optBoolean("showSeconds", face.showSeconds),
-                        equalWidthDigits = data.optBoolean("equalWidthDigits", face.equalWidthDigits),
-                        centerDigits = data.optBoolean("centerDigits", face.centerDigits),
+                        horizontalEqualWidthDigits = data.optBoolean("horizontalEqualWidthDigits", face.horizontalEqualWidthDigits),
+                        horizontalCenterDigits = data.optBoolean("horizontalCenterDigits", face.horizontalCenterDigits),
+                        verticalEqualWidthDigits = data.optBoolean("verticalEqualWidthDigits",
+                            data.optBoolean("equalWidthDigits", face.verticalEqualWidthDigits)),
+                        verticalCenterDigits = data.optBoolean("verticalCenterDigits",
+                            data.optBoolean("centerDigits", face.verticalCenterDigits)),
                         useLatinLetters = data.optBoolean("useLatinLetters", face.useLatinLetters),
+                        minuteScale = data.optInt("minuteScale", face.minuteScale),
+                        secondScale = data.optInt("secondScale", face.secondScale),
                     ).normalized()
                 }.toMap(),
                 secondary = ClockRegionRow.decode(json.optJSONObject("secondary"), defaults.secondary),

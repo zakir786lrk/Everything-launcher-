@@ -3,7 +3,7 @@ package rikazzz.everythinglauncher.ui.overlays
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import rikazzz.everythinglauncher.ui.theme.FontShadowText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment

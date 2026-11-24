@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import rikazzz.everythinglauncher.ui.theme.LocalFontShadowEnabled
+import rikazzz.everythinglauncher.ui.theme.WithoutFontShadow
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.*
+import rikazzz.everythinglauncher.ui.theme.FontShadowText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -110,11 +113,11 @@ internal fun AppSearchScreen(
     queryState: TextFieldState = rememberTextFieldState(),
     transition: GraceButtonTransition? = null,
     isAppList: Boolean = false,
-) {
+) = CompositionLocalProvider(LocalFontShadowEnabled provides true) {
     val settings = uiState.settings.search
     val query = queryState.text.toString().trim()
     val context = LocalContext.current
-    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { LauncherCustomPreferences.getInstance(context) }
     val deviceSettingsRepo = remember(context) { DeviceSettingsRepository(context) }
     val keyboard = LocalSoftwareKeyboardController.current
     val autoOpenKeyboard = if (isAppList) customPrefs.drawerAutoOpenKeyboard else customPrefs.searchAutoOpenKeyboard
@@ -543,8 +546,9 @@ internal fun AppSearchScreen(
                             else -> ""
                         }
                         val resultDisplay = (result as? SearchResult.App)?.app?.effectiveDisplay(appearance)
+                        val badge = (result as? SearchResult.App)?.app?.takeIf { it.isArchived }?.let { stringResource(R.string.app_archived_label) }
                         SearchResultRow(
-                            label, result.key, first = index == 0, onClick = { open(result, it) },
+                            label, result.key, first = index == 0, badge = badge, onClick = { open(result, it) },
                             hideIcon = resultDisplay?.style == IconDisplayStyle.Hidden,
                             onLongClick = (result as? SearchResult.App)?.let { { keyboard?.hide(); onDetails(it.app) } }
                         ) { iconModifier ->
@@ -649,7 +653,7 @@ internal fun AppSearchScreen(
 }
 
 @Composable
-private fun SearchResultRow(label: String, key: String, first: Boolean, hideIcon: Boolean = false, onClick: (Rect) -> Unit,
+private fun SearchResultRow(label: String, key: String, first: Boolean, badge: String? = null, hideIcon: Boolean = false, onClick: (Rect) -> Unit,
     onLongClick: (() -> Unit)?, trailing: (@Composable () -> Unit)? = null, icon: @Composable (Modifier) -> Unit) {
     val appearance = LocalLauncherAppearance.current
     var bounds by remember { mutableStateOf(Rect.Zero) }
@@ -666,6 +670,8 @@ private fun SearchResultRow(label: String, key: String, first: Boolean, hideIcon
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (first) FontWeight.Bold else FontWeight.Normal, shadow = appearance.textShadow),
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (first) Box(Modifier.padding(start = 8.dp).size(5.dp).background(appearance.text, CircleShape).testTag("search_first_result_dot"))
+            if (badge != null) Text(badge, Modifier.padding(start = 8.dp).testTag(key + ":badge"), color = appearance.text.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.labelMedium.copy(shadow = appearance.textShadow), maxLines = 1)
         }
         if (trailing != null) {
             trailing()
@@ -681,7 +687,9 @@ private fun ContactAvatar(contact: SearchContact, source: SearchContacts, modifi
         color = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer) {
         Box(contentAlignment = Alignment.Center) {
             val name = contact.name.trim()
-            Text(if (name.isEmpty()) "?" else String(Character.toChars(name.codePointAt(0))).uppercase(), style = MaterialTheme.typography.titleLarge)
+            WithoutFontShadow {
+                Text(if (name.isEmpty()) "?" else String(Character.toChars(name.codePointAt(0))).uppercase(), style = MaterialTheme.typography.titleLarge)
+            }
         }
     }
 }

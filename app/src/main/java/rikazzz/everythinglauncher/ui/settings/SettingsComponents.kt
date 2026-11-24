@@ -2,6 +2,7 @@
 
 package rikazzz.everythinglauncher.ui.settings
 
+import rikazzz.everythinglauncher.ui.theme.WithoutFontShadow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -96,7 +97,7 @@ internal fun SettingsScaffold(
     controlsAbovePreview: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
-) {
+) = WithoutFontShadow {
     val reportSystemBarBackground = LocalSettingsSystemBarBackground.current
     SideEffect {
         reportSystemBarBackground(when {
@@ -318,10 +319,11 @@ internal fun SettingsToggleItem(
     tag: String,
     enabled: Boolean = true,
     leading: @Composable (() -> Unit)? = null,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceBright,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val shapes = ListItemDefaults.segmentedShapes(index = index, count = count)
-    val colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceBright)
+    val colors = ListItemDefaults.segmentedColors(containerColor = containerColor)
     SegmentedListItem(
         checked = checked,
         onCheckedChange = onCheckedChange,

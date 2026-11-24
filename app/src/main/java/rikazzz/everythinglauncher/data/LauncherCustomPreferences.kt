@@ -5,8 +5,10 @@ import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
-class LauncherCustomPreferences(context: Context) {
-    private val prefs: SharedPreferences = context.applicationContext.getSharedPreferences("launcher_custom_prefs", Context.MODE_PRIVATE)
+class LauncherCustomPreferences internal constructor(private val prefs: SharedPreferences) {
+    constructor(context: Context) : this(
+        context.applicationContext.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
+    )
 
     // Dock & App Stacks
     var fixedDockStackId: String?
@@ -150,9 +152,12 @@ class LauncherCustomPreferences(context: Context) {
         put("default_search_engine", defaultSearchEngine)
     }
 
-    fun importFromJson(json: JSONObject) {
+    fun importFromJson(json: JSONObject, commitSync: Boolean = false): Boolean {
         val editor = prefs.edit()
-        if (json.has("fixed_dock_stack_id")) editor.putString("fixed_dock_stack_id", json.optString("fixed_dock_stack_id", null))
+        if (json.has("fixed_dock_stack_id")) {
+            if (json.isNull("fixed_dock_stack_id")) editor.remove("fixed_dock_stack_id")
+            else editor.putString("fixed_dock_stack_id", json.optString("fixed_dock_stack_id"))
+        }
         if (json.has("stack_labels_enabled")) editor.putBoolean("stack_labels_enabled", json.optBoolean("stack_labels_enabled", true))
         if (json.has("dock_background_enabled")) editor.putBoolean("dock_background_enabled", json.optBoolean("dock_background_enabled", false))
         if (json.has("dim_home_screen_wallpaper")) editor.putBoolean("dim_home_screen_wallpaper", json.optBoolean("dim_home_screen_wallpaper", true))
@@ -184,10 +189,12 @@ class LauncherCustomPreferences(context: Context) {
         if (json.has("search_show_recently_opened")) editor.putBoolean("search_show_recently_opened", json.optBoolean("search_show_recently_opened", true))
         if (json.has("search_show_frequently_opened")) editor.putBoolean("search_show_frequently_opened", json.optBoolean("search_show_frequently_opened", true))
         if (json.has("default_search_engine")) editor.putString("default_search_engine", json.optString("default_search_engine", "google"))
-        editor.apply()
+        return if (commitSync) editor.commit() else { editor.apply(); true }
     }
 
     companion object {
+        internal const val FILE_NAME = "launcher_custom_prefs"
+
         @Volatile
         private var instance: LauncherCustomPreferences? = null
 

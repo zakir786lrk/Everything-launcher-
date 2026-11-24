@@ -234,7 +234,7 @@
     <string name="lab_animation">Animação</string>
     <string name="lab_swipe_sensitivity">Sensibilidade do deslizamento</string>
     <string name="wallpaper_text">Texto do papel de parede</string>
-    <string name="lab_swipe_sensitivity_summary">Valores mais altos facilitam a ativação do deslizamento na tela inicial e do gesto de deslizar para baixo para fechar a pesquisa. 100% mantém os limites padrão de distância e velocidade.</string>
+    <string name="lab_swipe_sensitivity_summary" formatted="false">Valores mais altos facilitam a ativação do deslizamento na tela inicial e do gesto de deslizar para baixo para fechar a pesquisa. 100% mantém os limites padrão de distância e velocidade.</string>
     <string name="lab_double_tap_interval">Intervalo do toque duplo</string>
     <string name="lab_double_tap_interval_summary">Tempo máximo entre toques no espaço vazio da tela inicial. Um intervalo mais longo facilita o toque duplo.</string>
     <string name="lab_milliseconds">%1$d ms</string>
@@ -660,8 +660,6 @@
     <string name="shortcuts_folders_title">Atalhos e pastas</string>
     <string name="popups_title">Janelas flutuantes</string>
     <string name="shortcuts_folders_enable">Ativar janela flutuante de aplicativos</string>
-    <string name="popup_swipe_left_first">Deslize para a esquerda para abrir o primeiro item</string>
-    <string name="popup_swipe_left_first_summary">Abra o primeiro atalho, aplicativo ou aplicativo do \"widget\" na janela flutuante</string>
     <string name="popup_silent_notifications">Notificações silenciosas</string>
     <string name="popup_normal_notifications">Notificações normais</string>
     <string name="popup_single_line_previews">Visualizações de notificação de linha única</string>
@@ -726,7 +724,7 @@
     <string name="media_keep_while_playing_summary">Os gestos de deslizar retornam à posição original em vez de dispensar o reprodutor durante a reprodução</string>
     <string name="lab_swipe_dismiss">Deslize para dispensar</string>
     <string name="lab_dismiss_resistance">Resistência ao deslizamento</string>
-    <string name="lab_dismiss_resistance_summary">Compartilhado por notificações e pelo reprodutor de mídia. Valores mais altos criam maior resistência; 0% acompanha o seu dedo.</string>
+    <string name="lab_dismiss_resistance_summary" formatted="false">Compartilhado por notificações e pelo reprodutor de mídia. Valores mais altos criam maior resistência; 0% acompanha o seu dedo.</string>
     <string name="lab_dismiss_threshold">Limite de rompimento</string>
     <string name="lab_dismiss_threshold_summary">Distância antes que a resistência seja liberada. Compartilhada por notificações e pelo reprodutor de mídia; limitada pela largura disponível.</string>
 </resources>

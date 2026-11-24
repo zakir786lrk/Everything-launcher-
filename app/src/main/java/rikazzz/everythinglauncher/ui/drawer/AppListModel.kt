@@ -9,6 +9,8 @@ import rikazzz.everythinglauncher.data.AppListBlock
 import rikazzz.everythinglauncher.data.AppListLayout
 import rikazzz.everythinglauncher.data.CategoryIcon
 import rikazzz.everythinglauncher.data.CategoryPlacement
+import java.time.DayOfWeek
+import java.time.LocalDate
 
 const val FolderSection = "◇"
 const val GraceSection = "grace-launcher"
@@ -47,7 +49,8 @@ class AppListModel(apps: List<LauncherApp>, folders: List<LauncherFolder> = empt
     workFolder: LauncherFolder? = null, workExpanded: Boolean = false, workApps: List<LauncherApp> = emptyList(),
     usageRanking: Map<String, Long> = emptyMap(),
     appList: AppListLayout = AppListLayout(), categories: List<AppCategory> = emptyList(),
-    categoryItems: Map<String, List<LauncherApp>> = emptyMap(), headphones: Boolean = false, minuteOfDay: Int = 0) {
+    categoryItems: Map<String, List<LauncherApp>> = emptyMap(), headphones: Boolean = false, minuteOfDay: Int = 0,
+    dayOfWeek: DayOfWeek = LocalDate.now().dayOfWeek) {
     private val settingsApp = (apps.firstOrNull { it.isLauncherSettings && it.user == null }
         ?: apps.firstOrNull(LauncherApp::isLauncherSettings))
         .takeIf { appList.showGraceLauncher && appList.showGraceSettings }
@@ -62,7 +65,7 @@ class AppListModel(apps: List<LauncherApp>, folders: List<LauncherFolder> = empt
     private val foldersByKey = (folders + listOfNotNull(privateFolder, workFolder, recentlyInstalledFolder))
         .associateBy(LauncherFolder::key)
     private val activeCategories: Map<String, AppCategory> = categories.asSequence()
-        .filter { it.placement == CategoryPlacement.AppList && it.isVisible(headphones, minuteOfDay) }
+        .filter { it.placement == CategoryPlacement.AppList && it.isVisible(headphones, minuteOfDay, dayOfWeek) }
         .map { if (it.icon == CategoryIcon.None) it.copy(icon = CategoryIcon.Circle) else it }
         .associateBy(AppCategory::key)
     val items: List<DrawerItem> = buildList {

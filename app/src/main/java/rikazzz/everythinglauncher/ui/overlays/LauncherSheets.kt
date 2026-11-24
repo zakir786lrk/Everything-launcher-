@@ -1,5 +1,7 @@
 package rikazzz.everythinglauncher.ui.overlays
 
+import rikazzz.everythinglauncher.ui.theme.WithoutFontShadow
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.activity.compose.BackHandler
@@ -15,6 +17,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.*
+import rikazzz.everythinglauncher.ui.theme.FontShadowText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,9 +26,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -79,12 +81,9 @@ sealed interface LauncherOverlay {
 
 @Composable
 internal fun LauncherPanelTheme(content: @Composable () -> Unit) {
-    // Panels share the chosen dynamic/custom scheme and dark mode with settings.
-    content()
+    // Panels share the theme's colors, but their filled backgrounds need no wallpaper text shadow.
+    WithoutFontShadow(content)
 }
-
-@Composable
-internal fun panelWindowHeight(): Dp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -151,7 +150,7 @@ internal fun LauncherOverlays(
                 val folder = (overlay as? LauncherOverlay.FolderSettings)?.folderId?.let { id ->
                     // Stacks have no details sheet: that sheet redirects straight
                     // back to this editor. Close instead of creating a return loop.
-                    if (uiState.folders.any { it.id == id && it.isAppStack }) null
+                    if (uiState.folders.any { it.id == id && (it.isAppStack || it.isWidgetStack) }) null
                     else uiState.findItem("folder:$id")
                 }
                 onChange(if ((overlay as? LauncherOverlay.SettingsDestination)?.returnToSearch == true && uiState.settings.search.enabled)
@@ -244,7 +243,8 @@ internal fun LauncherOverlays(
         LauncherPanelTheme { AgendaPanel(uiState, actions, onRequestCalendar) { onChange(null) } }
         return
     }
-    val maxHeight = panelWindowHeight() * 0.9f
+    val layout = launcherSheetLayout(uiState.settings.hideStatusBar)
+    val maxHeight = layout.windowHeight * 0.9f
     LauncherPanelTheme {
         val sheetColor = MaterialTheme.colorScheme.surface
         ModalBottomSheet(
@@ -256,32 +256,36 @@ internal fun LauncherOverlays(
             contentColor = MaterialTheme.colorScheme.onSurface,
             scrimColor = Color.Black.copy(alpha = 0.6f),
             dragHandle = null,
+            contentWindowInsets = { layout.contentInsets.union(WindowInsets.ime) },
             properties = ModalBottomSheetProperties(
                 isAppearanceLightStatusBars = false,
                 isAppearanceLightNavigationBars = sheetColor.luminance() > 0.5f,
             ),
         ) {
-          // Limit the content, not the dialog's anchoring window: the sheet must
-          // always meet the physical bottom edge, including on tall displays.
-          Box(Modifier.fillMaxWidth().heightIn(max = maxHeight)) {
-            when (overlay) {
-                is LauncherOverlay.AppDetails -> AppDetailsSheet(
-                    app = if (overlay.app.folderId == RecentlyInstalledFolderId)
-                        uiState.folderItem(uiState.recentlyInstalledFolder(stringResource(R.string.recently_installed)))
-                        else uiState.findItem(overlay.app.key) ?: overlay.app,
-                    actions = actions, onChange = onChange, popupOwner = overlay.popupOwner, uiState = uiState,
-                    returnTo = overlay.returnTo,
-                    fromAppList = overlay.fromAppList,
-                )
-                LauncherOverlay.HomeWidgetMenu -> HomeWidgetSheet(uiState, actions, onChange, custom = false)
-                LauncherOverlay.CustomWidgetMenu -> HomeWidgetSheet(uiState, actions, onChange, custom = true)
-                is LauncherOverlay.Categories -> CategoryPicker(overlay.app, uiState, actions) { onChange(LauncherOverlay.AppDetails(overlay.app, fromAppList = overlay.fromAppList)) }
-                is LauncherOverlay.CategoryApps -> CategoryAppsSheet(overlay.name, uiState) { onChange(null); onLaunchApp(it) }
-                LauncherOverlay.Agenda, LauncherOverlay.Settings, is LauncherOverlay.Search, is LauncherOverlay.Shortcuts,
-                is LauncherOverlay.Homepage, is LauncherOverlay.IconDesigner, is LauncherOverlay.EditPopup,
-                is LauncherOverlay.Folder, is LauncherOverlay.FolderSettings, is LauncherOverlay.SettingsDestination -> Unit
+            CompositionLocalProvider(LocalLauncherSheetLayout provides layout) {
+                LauncherSheetSystemBars(uiState.settings.hideStatusBar)
+                // Limit the content, not the dialog's anchoring window: the sheet must
+                // always meet the physical bottom edge, including on tall displays.
+                Box(Modifier.fillMaxWidth().heightIn(max = maxHeight + layout.bottomInset)) {
+                    when (overlay) {
+                        is LauncherOverlay.AppDetails -> AppDetailsSheet(
+                            app = if (overlay.app.folderId == RecentlyInstalledFolderId)
+                                uiState.folderItem(uiState.recentlyInstalledFolder(stringResource(R.string.recently_installed)))
+                                else uiState.findItem(overlay.app.key) ?: overlay.app,
+                            actions = actions, onChange = onChange, popupOwner = overlay.popupOwner, uiState = uiState,
+                            returnTo = overlay.returnTo,
+                            fromAppList = overlay.fromAppList,
+                        )
+                        LauncherOverlay.HomeWidgetMenu -> HomeWidgetSheet(uiState, actions, onChange, custom = false)
+                        LauncherOverlay.CustomWidgetMenu -> HomeWidgetSheet(uiState, actions, onChange, custom = true)
+                        is LauncherOverlay.Categories -> CategoryPicker(overlay.app, uiState, actions) { onChange(LauncherOverlay.AppDetails(overlay.app, fromAppList = overlay.fromAppList)) }
+                        is LauncherOverlay.CategoryApps -> CategoryAppsSheet(overlay.name, uiState) { onChange(null); onLaunchApp(it) }
+                        LauncherOverlay.Agenda, LauncherOverlay.Settings, is LauncherOverlay.Search, is LauncherOverlay.Shortcuts,
+                        is LauncherOverlay.Homepage, is LauncherOverlay.IconDesigner, is LauncherOverlay.EditPopup,
+                        is LauncherOverlay.Folder, is LauncherOverlay.FolderSettings, is LauncherOverlay.SettingsDestination -> Unit
+                    }
+                }
             }
-          }
         }
     }
 }
@@ -310,7 +314,7 @@ private fun AppDetailsSheet(app: LauncherApp, actions: LauncherActions, onChange
         LaunchedEffect(app.key) { onChange(null) }
         return
     }
-    if (folder?.isAppStack == true) {
+    if (folder != null && (folder.isAppStack || folder.isWidgetStack)) {
         LaunchedEffect(folder.id) { onChange(LauncherOverlay.FolderSettings(folder.id)) }
         return
     }
@@ -318,7 +322,8 @@ private fun AppDetailsSheet(app: LauncherApp, actions: LauncherActions, onChange
     val editIconDescription = stringResource(R.string.icon_designer_title)
     // Extend touch surfaces into the gutter, keeping their inset content on the
     // same two columns as the header (icon center and text leading edge).
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 12.dp).testTag("app_details")) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+        .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 12.dp + launcherSheetBottomInset()).testTag("app_details")) {
         Row(Modifier.padding(horizontal = DetailsContentInset).padding(bottom = 8.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             AppIcon(app, modifier = Modifier.testTag("app_details_icon").clip(RoundedCornerShape(12.dp))
                 .semantics { contentDescription = editIconDescription }
@@ -447,7 +452,7 @@ private fun CategoryPicker(app: LauncherApp, uiState: LauncherUiState, actions: 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp)) {
         PanelTitle(stringResource(R.string.add_to_folder))
         Text(app.label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        uiState.folders.filterNot { it.isAppStack }.forEach { folder ->
+        uiState.folders.filterNot { it.isAppStack || it.isWidgetStack }.forEach { folder ->
             val isMember = app.key in folder.appKeys
             PanelAction(if (isMember) LauncherSymbol.Check else LauncherSymbol.Folder, folder.name) {
                 actions.updatePopup(uiState.folderItem(folder), listOf(app)) { current ->
@@ -457,7 +462,7 @@ private fun CategoryPicker(app: LauncherApp, uiState: LauncherUiState, actions: 
             }
         }
         PanelAction(LauncherSymbol.Plus, stringResource(R.string.create_app_folder)) { creating = true }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(24.dp + launcherSheetBottomInset()))
     }
     if (creating) TextEntryDialog(stringResource(R.string.create_app_folder), "", { creating = false }, {
         actions.saveFolder(LauncherFolder(UUID.randomUUID().toString(), it, listOf(app.key), FolderPlacement.AppList))
@@ -467,9 +472,11 @@ private fun CategoryPicker(app: LauncherApp, uiState: LauncherUiState, actions: 
 
 @Composable
 private fun CategoryAppsSheet(name: String, uiState: LauncherUiState, onLaunch: (LauncherApp) -> Unit) {
+    val bottomPadding = 24.dp + launcherSheetBottomInset()
     Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp)) {
         PanelTitle(name)
-        LazyColumn(Modifier.heightIn(max = panelWindowHeight() * 0.65f)) {
+        LazyColumn(Modifier.heightIn(max = panelWindowHeight() * 0.65f + bottomPadding),
+            contentPadding = PaddingValues(bottom = bottomPadding)) {
             items(uiState.allApps.filter { uiState.categories[it.key] == name }, key = LauncherApp::key) { app ->
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 56.dp)
@@ -484,18 +491,21 @@ private fun CategoryAppsSheet(name: String, uiState: LauncherUiState, onLaunch: 
                 }
             }
         }
-        Spacer(Modifier.height(24.dp))
     }
 }
 
 @Composable
-internal fun TextEntryDialog(title: String, initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit, onReset: (() -> Unit)? = null) {
-    var value by remember { mutableStateOf(initial) }
+internal fun TextEntryDialog(title: String, initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit, onReset: (() -> Unit)? = null) = WithoutFontShadow {
+    val input = androidx.compose.foundation.text.input.rememberTextFieldState(initial)
+    val value = input.text.toString()
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(40.dp),
         title = { Text(title) },
-        text = { OutlinedTextField(value, onValueChange = { value = it.take(80) }, singleLine = true, modifier = Modifier.testTag("text_entry")) },
+        text = {
+            OutlinedTextField(value, onValueChange = { next -> input.edit { replace(0, length, next.take(80)) } },
+                singleLine = true, modifier = Modifier.testTag("text_entry"))
+        },
         confirmButton = { TextButton(onClick = { onSave(value.trim()) }, enabled = value.isNotBlank()) { Text(stringResource(R.string.save)) } },
         dismissButton = {
             Row {
@@ -544,5 +554,15 @@ internal fun DeleteFolderDialog(name: String, onDismiss: () -> Unit, appStack: B
         text = { Text(stringResource(if (appStack) R.string.app_stack_delete_confirmation else R.string.settings_folder_delete_confirmation, name)) },
         confirmButton = { TextButton(onClick = onDelete, modifier = Modifier.testTag("folder_confirm_delete")) {
             Text(stringResource(R.string.settings_delete), color = MaterialTheme.colorScheme.error)
+        } }, dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
+}
+
+@Composable
+internal fun DismissNotificationsDialog(count: Int, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss, shape = RoundedCornerShape(40.dp),
+        title = { Text(stringResource(R.string.dismiss_notifications_title)) },
+        text = { Text(pluralStringResource(R.plurals.dismiss_notifications_message, count, count)) },
+        confirmButton = { TextButton(onClick = onConfirm, modifier = Modifier.testTag("dismiss_notifications_confirm")) {
+            Text(stringResource(R.string.dismiss_notifications_confirm))
         } }, dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } })
 }

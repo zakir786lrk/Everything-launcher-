@@ -223,7 +223,7 @@
     <string name="settings_lab">Laboratoire</string>
     <string name="lab_animation">Animation</string>
     <string name="lab_swipe_sensitivity">Sensibilité du glissement</string>
-    <string name="lab_swipe_sensitivity_summary">Des valeurs plus élevées facilitent le déclenchement des gestes sur l\'écran d\'accueil et du glissement vers le bas pour fermer la recherche. À 100 %, les seuils par défaut de distance et de vitesse sont conservés.</string>
+    <string name="lab_swipe_sensitivity_summary" formatted="false">Des valeurs plus élevées facilitent le déclenchement des gestes sur l\'écran d\'accueil et du glissement vers le bas pour fermer la recherche. À 100 %, les seuils par défaut de distance et de vitesse sont conservés.</string>
     <string name="lab_double_tap_interval">Intervalle entre deux appuis</string>
     <string name="lab_double_tap_interval_summary">Délai maximal entre deux appuis sur une zone vide de l\'écran d\'accueil. Un délai plus long facilite le double appui.</string>
     <string name="lab_milliseconds">%1$d ms</string>
@@ -623,8 +623,6 @@
     <string name="list_left_alphabet">Utiliser depuis la gauche</string>
     <string name="shortcuts_folders_title">Raccourcis et dossiers</string>
     <string name="shortcuts_folders_enable">Activer les fenêtres contextuelles des applications</string>
-    <string name="popup_swipe_left_first">Glisser vers la gauche pour ouvrir le premier élément</string>
-    <string name="popup_swipe_left_first_summary">Ouvrir l\'application associée au premier raccourci, à la première application ou au premier widget dans la fenêtre contextuelle</string>
     <string name="popup_silent_notifications">Notifications silencieuses</string>
     <string name="popup_normal_notifications">Notifications normales</string>
     <string name="popup_notification_normal">Afficher normalement</string>
@@ -752,7 +750,7 @@
     <string name="settings_home_screen">Ecran d\'accueil</string>
     <string name="settings_feed_screen">Ecran de défilement</string>
     <string name="settings_status_screen">Statuts</string>
-    <string name="lab_dismiss_resistance_summary">Partagés par les notifications et le player média. Une valeur plus haute créée plus de résistance ; 0% suis le mouvement du doigt.</string>
+    <string name="lab_dismiss_resistance_summary" formatted="false">Partagés par les notifications et le player média. Une valeur plus haute créée plus de résistance ; 0% suis le mouvement du doigt.</string>
     <string name="lab_dismiss_threshold_summary">Distance avant que la résistance ne lâche. Partagée par les notifications et le player média ; limitée par la largeur disponible.</string>
     <string name="font_color_default">Couleur de police par défaut</string>
     <string name="font_color_theme">Couleur de police du thème</string>
@@ -881,7 +879,7 @@
     <plurals name="app_category_item_count">
         <item quantity="one">un %1$d objet</item>
         <item quantity="many">De nombreux %1$d objets</item>
-        <item quantity="other">Des</item>
+        <item quantity="other">%1$d objets</item>
     </plurals>
     <string name="media_keep_while_playing_summary">Balayer l\'écran ramène au menu au lieu d\'arrêter le processus pendant le visionnage</string>
     <string name="settings_tasks">Tâches</string>
@@ -952,4 +950,13 @@
     <string name="calendar_sources_loading">Chargement des calendriers…</string>
     <string name="calendar_sources_error">Impossible de charger les calendriers</string>
     <string name="calendar_sources_empty">Aucun calendrier trouvé</string>
+    <string name="clock_content_alignment_divider">Alignement gauche/droite</string>
+    <string name="clock_content_unselected">Non sélectionné</string>
+    <string name="calendar_local">Sur l\'appareil</string>
+    <string name="calendar_unnamed">Calendrier non nommé</string>
+    <string name="calendar_hidden">Caché dans le calendrier système</string>
+    <string name="calendar_open_events">Événements ouverts</string>
+    <string name="calendar_app">Application agenda par défaut</string>
+    <string name="calendar_system_default_app">Par défaut</string>
+    <string name="calendar_choose_app_description">Choisir l\'application utilisée pur ouvrir les événements de l\'agenda</string>
 </resources>

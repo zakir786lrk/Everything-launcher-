@@ -2,6 +2,7 @@
 
 package rikazzz.everythinglauncher.ui.settings
 
+import rikazzz.everythinglauncher.ui.theme.LocalFontShadowEnabled
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -63,6 +64,7 @@ import rikazzz.everythinglauncher.ui.overlays.PopupEditorScreen
 import rikazzz.everythinglauncher.ui.overlays.TextEntryDialog
 import rikazzz.everythinglauncher.ui.overlays.FolderPlacementDialog
 import rikazzz.everythinglauncher.ui.overlays.DeleteFolderDialog
+import rikazzz.everythinglauncher.ui.theme.withFontShadow
 import rikazzz.everythinglauncher.ui.theme.LocalLauncherTypography
 import rikazzz.everythinglauncher.ui.theme.SystemLauncherTypography
 import java.util.UUID
@@ -80,7 +82,7 @@ internal fun ProductivitySettings(
 ) {
     val settings = uiState.settings
     val context = LocalContext.current
-    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences.getInstance(context) }
     var overflowMode by remember { mutableStateOf(customPrefs.favoritesOverflowMode) }
     var maxVisibleCount by remember { mutableIntStateOf(customPrefs.favoritesMaxVisibleCount) }
     var overflowFolderName by remember { mutableStateOf(customPrefs.favoritesOverflowFolderName) }
@@ -135,17 +137,17 @@ internal fun ProductivitySettings(
                     leading = { LauncherIcon(LauncherSymbol.Outbound) }) { navigate(SettingsPage.ShortcutsFolders) }
             }
             item { SettingsHeading(stringResource(R.string.settings_screens)) }
+            val screenCount = if (overflowMode == "folder") 7 else 6
             item {
-                SettingsActionItem(stringResource(R.string.settings_home_screen), null, 0, 6, "settings_edit_homepage",
-                    leading = { LauncherIcon(LauncherSymbol.Home) }) { navigate(SettingsPage.Homepage) }
+                SettingsActionItem(stringResource(R.string.settings_home_screen), null, 0, screenCount, "settings_edit_homepage",
+                    leading = { LauncherIcon(LauncherSymbol.Home) }) { navigate(SettingsPage.HomeScreen) }
             }
             item {
-                val totalScreenItems = if (overflowMode == "folder") 8 else 7
                 SettingsToggleItem(
                     "Group Overflow Apps in Folder",
                     if (overflowMode == "folder") "Extra apps beyond $maxVisibleCount are moved into a '${overflowFolderName.ifBlank { "More" }}' folder"
                     else "All favorite apps scroll freely on the home screen",
-                    overflowMode == "folder", 1, totalScreenItems, "favorites_overflow_mode",
+                    overflowMode == "folder", 1, screenCount, "favorites_overflow_mode",
                     leading = { LauncherIcon(LauncherSymbol.Folder) }
                 ) { checked ->
                     val newMode = if (checked) "folder" else "scroll"
@@ -158,7 +160,7 @@ internal fun ProductivitySettings(
                     SettingsActionItem(
                         "Max Visible Favorites",
                         "$maxVisibleCount apps before moving into folder (tap to cycle: 4, 6, 8, 10, 12)",
-                        2, 8, "favorites_max_visible",
+                        2, screenCount, "favorites_max_visible",
                         leading = { LauncherIcon(LauncherSymbol.Apps) }
                     ) {
                         val next = when (maxVisibleCount) {
@@ -174,55 +176,61 @@ internal fun ProductivitySettings(
                 }
             }
             item {
-                val totalScreenItems = if (overflowMode == "folder") 7 else 6
                 val idx = if (overflowMode == "folder") 3 else 2
-                SettingsActionItem(stringResource(R.string.settings_folder_app_list), null, idx, totalScreenItems, "settings_app_list",
+                SettingsActionItem(stringResource(R.string.settings_folder_app_list), null, idx, screenCount, "settings_app_list",
                     leading = { LauncherIcon(LauncherSymbol.Apps) }) { navigate(SettingsPage.AppList) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.widget_screen_title), null, 3, 6, "settings_widget_screen",
+                val idx = if (overflowMode == "folder") 4 else 3
+                SettingsActionItem(stringResource(R.string.widget_screen_title), null, idx, screenCount, "settings_widget_screen",
                     leading = { LauncherIcon(LauncherSymbol.Widgets) }) { navigate(SettingsPage.WidgetScreen) }
             }
             item {
+                val idx = if (overflowMode == "folder") 5 else 4
                 SettingsActionItem(stringResource(R.string.settings_feed_screen),
                     if (customPrefs.feedScreenEnabled) stringResource(R.string.feed_screen_swipe) else stringResource(R.string.feed_screen_swipe_disabled),
-                    4, 6, "settings_feed_screen",
+                    idx, screenCount, "settings_feed_screen",
                     leading = { LauncherIcon(LauncherSymbol.Outbound) }) { navigate(SettingsPage.FeedScreen) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.settings_status_screen), null, 5, 6, "settings_status_screen",
+                val idx = if (overflowMode == "folder") 6 else 5
+                SettingsActionItem(stringResource(R.string.settings_status_screen), null, idx, screenCount, "settings_status_screen",
                     leading = { LauncherIcon(LauncherSymbol.Notifications) }) { navigate(SettingsPage.StatusScreen) }
             }
             item { SettingsHeading(stringResource(R.string.settings_app_organization)) }
             item {
                 SettingsActionItem(
                     stringResource(R.string.settings_hide_apps), pluralStringResource(R.plurals.settings_hidden_count, uiState.effectiveHiddenAppKeys.size, uiState.effectiveHiddenAppKeys.size),
-                    0, 6, "settings_open_hidden_apps",
+                    0, 7, "settings_open_hidden_apps",
                     leading = { LauncherIcon(LauncherSymbol.VisibilityOff) },
                 ) { navigate(SettingsPage.HiddenApps) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.app_categories_title), null, 1, 6, "settings_app_categories",
+                SettingsActionItem(stringResource(R.string.app_categories_title), null, 1, 7, "settings_app_categories",
                     leading = { LauncherIcon(LauncherSymbol.Category) }) { navigate(SettingsPage.AppCategories) }
             }
             item {
                 SettingsActionItem(
-                    stringResource(R.string.settings_folders), pluralStringResource(R.plurals.settings_folder_count, uiState.folders.count { !it.isAppStack }, uiState.folders.count { !it.isAppStack }),
-                    2, 5, "settings_open_folders",
+                    stringResource(R.string.settings_folders), pluralStringResource(R.plurals.settings_folder_count, uiState.folders.count { !it.isAppStack && !it.isWidgetStack }, uiState.folders.count { !it.isAppStack && !it.isWidgetStack }),
+                    2, 7, "settings_open_folders",
                     leading = { LauncherIcon(LauncherSymbol.Folder) },
                 ) { navigate(SettingsPage.Folders) }
             }
             item {
-                SettingsActionItem(stringResource(R.string.app_stacks_title), null, 3, 5, "settings_app_stacks",
-                    leading = { LauncherIcon(LauncherSymbol.Apps) }) { navigate(SettingsPage.AppStacks) }
+                SettingsActionItem(stringResource(R.string.app_stacks_title), null, 3, 7, "settings_app_stacks",
+                    leading = { LauncherIcon(LauncherSymbol.Steppers) }) { navigate(SettingsPage.AppStacks) }
+            }
+            item {
+                SettingsActionItem(stringResource(R.string.widget_stacks_title), null, 4, 7, "settings_widget_stacks",
+                    leading = { LauncherIcon(LauncherSymbol.Widgets) }) { navigate(SettingsPage.WidgetStacks) }
             }
             item {
                 SettingsActionItem(stringResource(R.string.work_profile_title), stringResource(R.string.work_profile_summary),
-                    4, 5, "settings_open_work_profile", leading = { LauncherIcon(LauncherSymbol.Work) }) { navigate(SettingsPage.WorkProfile) }
+                    5, 7, "settings_open_work_profile", leading = { LauncherIcon(LauncherSymbol.Work) }) { navigate(SettingsPage.WorkProfile) }
             }
             item {
                 SettingsActionItem(stringResource(R.string.private_space_title), stringResource(R.string.private_space_summary),
-                    5, 5, "settings_open_private_space", leading = { LauncherIcon(LauncherSymbol.Lock) }) { navigate(SettingsPage.PrivateSpace) }
+                    6, 7, "settings_open_private_space", leading = { LauncherIcon(LauncherSymbol.Lock) }) { navigate(SettingsPage.PrivateSpace) }
             }
             item { SettingsHeading(stringResource(R.string.settings_advanced)) }
             item {
@@ -319,8 +327,9 @@ internal fun FavoriteFoldersScreen(uiState: LauncherUiState, actions: LauncherAc
         }
     }
     BackHandler(onBack = confirm)
-    MaterialTheme(typography = if (uiState.settings.applyFontToSettings) LocalLauncherTypography.current else SystemLauncherTypography) {
-        CompositionLocalProvider(LocalSettingsStorageState provides SettingsStorageState(
+    MaterialTheme(typography = (if (uiState.settings.applyFontToSettings) LocalLauncherTypography.current else SystemLauncherTypography)
+        .withFontShadow(androidx.compose.ui.graphics.Shadow.None)) {
+        CompositionLocalProvider(LocalFontShadowEnabled provides false, LocalSettingsStorageState provides SettingsStorageState(
             uiState.isLoadingSettings, uiState.settingsLoadFailed, uiState.settingsSaveFailed,
         )) {
             FolderSettings(uiState, actions, confirm, selectedIds = selectedIds, enabled = !saving,
@@ -342,11 +351,11 @@ internal fun FolderSettings(
     excludedIds: Set<String> = emptySet(),
     onEdit: (String) -> Unit,
 ) {
-    val folders = uiState.folders.filter { it.isAppStack == appStacks && it.id !in excludedIds }
+    val folders = uiState.folders.filter { !it.isWidgetStack && it.isAppStack == appStacks && it.id !in excludedIds }
     val title = stringResource(if (appStacks) R.string.app_stacks_title else R.string.settings_folders)
     val createTitle = stringResource(if (appStacks) R.string.app_stack_create else R.string.settings_folder_create)
     val context = LocalContext.current
-    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences.getInstance(context) }
     var stackLabels by remember { mutableStateOf(customPrefs.stackLabelsEnabled) }
     var creating by rememberSaveable { mutableStateOf(false) }
     var openingId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -432,6 +441,10 @@ internal fun FolderSettings(
 internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, actions: LauncherActions, onBack: () -> Unit,
     onEditIcon: (LauncherApp) -> Unit = {}) {
     val folder = uiState.folders.firstOrNull { it.id == folderId }
+    if (folder?.isWidgetStack == true) {
+        WidgetStackEditorSettings(folder.id, uiState, actions, onBack)
+        return
+    }
     if (folder == null) {
         SettingsScaffold(stringResource(R.string.settings_folder_edit), "settings_folder_editor", onBack) { padding ->
             Box(Modifier.padding(padding)) {
@@ -442,7 +455,7 @@ internal fun FolderEditorSettings(folderId: String?, uiState: LauncherUiState, a
     }
     val app = uiState.folderItem(folder)
     val context = LocalContext.current
-    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences.getInstance(context) }
     var isFixedDock by remember(folder.id, customPrefs.fixedDockStackId) { mutableStateOf(customPrefs.fixedDockStackId == folder.id) }
     var dockBgEnabled by remember { mutableStateOf(customPrefs.dockBackgroundEnabled) }
     var rename by rememberSaveable(folder.id) { mutableStateOf(false) }

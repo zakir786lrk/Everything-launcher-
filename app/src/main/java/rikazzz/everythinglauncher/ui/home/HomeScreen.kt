@@ -7,6 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshotFlow
@@ -25,6 +26,9 @@ import rikazzz.everythinglauncher.ui.overlays.FavoritesReorderState
 import rikazzz.everythinglauncher.ui.overlays.rememberReorderTranslation
 import rikazzz.everythinglauncher.ui.overlays.PopupWidgetItem
 import rikazzz.everythinglauncher.ui.overlays.PopupWidgetControls
+import rikazzz.everythinglauncher.ui.widgets.WidgetEditOutlineGap
+import rikazzz.everythinglauncher.ui.widgets.rememberWidgetEditorOffset
+import rikazzz.everythinglauncher.ui.components.statusBarContentFade
 import kotlinx.coroutines.isActive
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.indication
@@ -48,10 +52,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.Text
+import rikazzz.everythinglauncher.ui.theme.FontShadowText as Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -64,6 +67,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -97,6 +101,7 @@ import rikazzz.everythinglauncher.data.CategoryIcon
 import rikazzz.everythinglauncher.data.LauncherFolder
 import rikazzz.everythinglauncher.data.ScheduleEvent
 import rikazzz.everythinglauncher.data.ClockStyle
+import rikazzz.everythinglauncher.data.ClockRegions
 import rikazzz.everythinglauncher.data.ClockColorPart
 import rikazzz.everythinglauncher.data.GraceButtonGesture
 import rikazzz.everythinglauncher.data.LauncherCustomPreferences
@@ -130,8 +135,7 @@ import rikazzz.everythinglauncher.ui.components.favoriteUsageLabel
 import rikazzz.everythinglauncher.ui.components.FolderRow
 import rikazzz.everythinglauncher.ui.components.AppStack
 import rikazzz.everythinglauncher.ui.components.LauncherLayout
-import rikazzz.everythinglauncher.ui.components.startPadding
-import rikazzz.everythinglauncher.ui.components.endPadding
+import rikazzz.everythinglauncher.ui.components.horizontalPadding
 import rikazzz.everythinglauncher.ui.components.stableStatusBarInset
 import rikazzz.everythinglauncher.ui.components.eventRemainingText
 import rikazzz.everythinglauncher.ui.theme.LocalLauncherAppearance
@@ -165,6 +169,8 @@ internal fun HomeScreen(
     onWidgetMenu: () -> Unit = {},
     onCustomWidgetMenu: () -> Unit = {},
     editingLayout: Boolean = false,
+    /** Reports where the home content starts (top of the first widget), so the app list can line up with it. */
+    onContentTop: (androidx.compose.ui.unit.Dp) -> Unit = {},
     widgetInputEnabled: Boolean = true,
     onTopOffsetChange: (Float) -> Unit = {},
     onWidgetHeightChange: (Int) -> Unit = {},
@@ -173,11 +179,13 @@ internal fun HomeScreen(
     onWidgetEditingChange: (Boolean) -> Unit = {},
     onWeatherClick: () -> Unit = {},
     onGraceButtonGesture: (GraceButtonGesture, GraceButtonOrigin) -> Unit = { _, _ -> },
+    onCalendarClick: () -> Unit = onDateClick,
+    onCalendarLongClick: (() -> Unit)? = null,
 ) {
     val now by rememberHomeTime()
     val headphones by rememberHeadphonesConnected()
-    val localTime = now.atZone(java.time.ZoneId.systemDefault()).toLocalTime()
-    val homeContent = uiState.visibleHomeContent(headphones, localTime.hour * 60 + localTime.minute)
+    val localTime = now.atZone(java.time.ZoneId.systemDefault())
+    val homeContent = uiState.visibleHomeContent(headphones, localTime.hour * 60 + localTime.minute, localTime.dayOfWeek)
     val event = if (uiState.settings.calendarAgenda) nextVisibleEvent(uiState.events, now,
         deprioritizeAllDay = uiState.settings.calendar.deprioritizeAllDay) else null
     val entries = homeContent.items
@@ -202,7 +210,7 @@ internal fun HomeScreen(
     val itemHeights = remember { mutableStateMapOf<String, Int>() }
     val density = LocalDensity.current
     val context = LocalContext.current
-    val customPrefs = remember(context) { rikazzz.everythinglauncher.data.LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { LauncherCustomPreferences.getInstance(context) }
     val fixedDockStack = remember(uiState.folders, customPrefs.fixedDockStackId) {
         uiState.folders.firstOrNull { it.id == customPrefs.fixedDockStackId && it.isAppStack }
     }
@@ -249,17 +257,6 @@ internal fun HomeScreen(
             finishEditing()
         }
     }
-    LaunchedEffect(reorder.draggingKey, density) {
-        if (reorder.draggingKey == null) return@LaunchedEffect
-        val edge = with(density) { 64.dp.toPx() }
-        val speed = with(density) { 640.dp.toPx() }
-        var previous = withFrameNanos { it }
-        while (isActive && reorder.draggingKey != null) {
-            val frame = withFrameNanos { it }
-            if (dragged) reorder.autoScroll(edge, speed * ((frame - previous) / 1_000_000_000f).coerceIn(0f, .032f))
-            previous = frame
-        }
-    }
     val startDrag: (String) -> Unit = { key ->
         if (!homeLayout.editingLocked) { dragged = false; reorder.start(key) }
     }
@@ -277,7 +274,7 @@ internal fun HomeScreen(
             if (it && !userIsEditing) baselinePinned = false
         }
     }
-    val overscroll = rememberOverscrollEffect()
+    val overscroll = rememberOverscrollEffect().takeUnless { homeLayout.disableStretch }
     val gesturesEnabled = widgetInputEnabled && !editingLayout && !widgetEditing && uiState.settings.homeGestures.enabled &&
         !uiState.isLoadingSettings && !uiState.settingsLoadFailed
     val doubleTapEnabled = gesturesEnabled && uiState.settings.homeGestures.doubleTap.active
@@ -293,6 +290,7 @@ internal fun HomeScreen(
         protectSwipeUp = uiState.settings.homeGestures.protectSwipeUp,
         protectSwipeDown = uiState.settings.homeGestures.protectSwipeDown,
         onPullReady = { haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate) },
+        locked = homeLayout.disableScrolling && !editingLayout && !widgetEditing,
     )
     LaunchedEffect(gesturesEnabled) { if (!gesturesEnabled) scrollConnection.cancelGesture() }
     BoxWithConstraints(modifier.fillMaxSize()
@@ -316,14 +314,45 @@ internal fun HomeScreen(
         // A short home list must still stretch immediately at its top boundary.
         val anchoredOrigin = if (baselineIndex >= 0 && baselineOffset != null && prefixHeight != null) baselineTop - prefixHeight else null
         val selectedLayout = selectedWidget?.let { drafts[it] ?: entriesByKey[it]?.widget }
-        val toolbarHeight = if (selectedLayout != null) minimumTop + 104.dp else 0.dp
+        var measuredToolbarHeight by remember { mutableIntStateOf(0) }
+        val selectedWidgetTop by remember(selectedWidget, listState, density) {
+            derivedStateOf {
+                listState.layoutInfo.let { info ->
+                    info.visibleItemsInfo.firstOrNull { it.key == FavoritesReorderState.itemKey(selectedWidget) }?.let {
+                        // Item offsets include a virtual negative viewport start for content padding.
+                        it.offset - info.viewportStartOffset + with(density) { (8.dp - WidgetEditOutlineGap).toPx() }
+                    }
+                }
+            }
+        }
+        val contentShift = rememberWidgetEditorOffset(selectedLayout != null, selectedWidgetTop,
+            if (measuredToolbarHeight > 0) with(density) { minimumTop.toPx() } + measuredToolbarHeight else 0f,
+            with(density) { 8.dp.toPx() }, reorder.draggingKey != null || resizing)
+        LaunchedEffect(reorder.draggingKey, density) {
+            if (reorder.draggingKey == null) return@LaunchedEffect
+            val edge = with(density) { 64.dp.toPx() }
+            val speed = with(density) { 640.dp.toPx() }
+            var previous = withFrameNanos { it }
+            while (isActive && reorder.draggingKey != null) {
+                val frame = withFrameNanos { it }
+                if (dragged) reorder.autoScroll(edge,
+                    speed * ((frame - previous) / 1_000_000_000f).coerceIn(0f, .032f), contentShift.value)
+                previous = frame
+            }
+        }
+        val latestContentTop by rememberUpdatedState(onContentTop)
+        SideEffect {
+            if (!editingLayout) {
+                latestContentTop(anchoredOrigin ?: if (baselineIndex >= 0) baselineTop else resolvedTop)
+            }
+        }
         val inputEnabled = widgetInputEnabled && !editingLayout && !uiState.isLoadingSettings && !uiState.settingsLoadFailed
         // When an off-screen prefix has not been measured yet, align by the
         // marker's key. Measured prefixes use ordinary padding and scroll bounds.
-        LaunchedEffect(reorder.keys, aboveHeights, baselineTop, baselineOffset, toolbarHeight, baselinePinned, reorder.draggingKey) {
+        LaunchedEffect(reorder.keys, aboveHeights, baselineTop, baselineOffset, baselinePinned, reorder.draggingKey) {
             if (baselinePinned && baselineIndex >= 0 && baselineOffset != null && reorder.draggingKey == null) {
                 if (anchoredOrigin != null) listState.requestScrollToItem(0,
-                    with(density) { (toolbarHeight - anchoredOrigin).coerceAtLeast(0.dp).roundToPx() })
+                    with(density) { (0.dp - anchoredOrigin).coerceAtLeast(0.dp).roundToPx() })
                 else listState.requestScrollToItem(baselineIndex, 0)
             }
         }
@@ -340,7 +369,7 @@ internal fun HomeScreen(
                     val app = uiState.findItem(entry.key)
                     if (app != null) {
                         val folder = app.folderId?.let(favoriteFolders::get)
-                        if (folder != null && folder.id == fixedDockStack?.id) {
+                        if (folder != null && (folder.id == fixedDockStack?.id || folder.isWidgetStack)) {
                             visible.add(entry)
                         } else {
                             if (appCount < maxVisibleApps) {
@@ -365,8 +394,8 @@ internal fun HomeScreen(
                     val app = uiState.findItem(entry.key)
                     if (app != null) {
                         val folder = app.folderId?.let(favoriteFolders::get)
-                        if (folder != null && folder.id == fixedDockStack?.id) {
-                            // Ignored (dock)
+                        if (folder != null && (folder.id == fixedDockStack?.id || folder.isWidgetStack)) {
+                            // Ignored (dock or widget stack)
                         } else {
                             if (appCount < maxVisibleApps) {
                                 appCount++
@@ -380,15 +409,14 @@ internal fun HomeScreen(
             }
         }
 
+        Box(Modifier.fillMaxSize().statusBarContentFade()) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().padding(top = toolbarHeight)
-                .overscroll(overscroll)
-                .nestedScroll(scrollConnection).testTag("home_content"),
-            contentPadding = PaddingValues(start = uiState.settings.listAppearance.startPadding,
-                end = uiState.settings.listAppearance.endPadding,
-                top = ((anchoredOrigin ?: if (baselineIndex >= 0) baselineTop else resolvedTop) - toolbarHeight).coerceAtLeast(0.dp),
-                bottom = if (baselineIndex >= 0 && (anchoredOrigin == null || anchoredOrigin < toolbarHeight))
+            modifier = Modifier.fillMaxSize().graphicsLayer { translationY = contentShift.value }
+                .overscroll(overscroll).nestedScroll(scrollConnection).testTag("home_content"),
+            contentPadding = PaddingValues(
+                top = (anchoredOrigin ?: if (baselineIndex >= 0) baselineTop else resolvedTop).coerceAtLeast(0.dp),
+                bottom = if (baselineIndex >= 0 && (anchoredOrigin == null || anchoredOrigin < 0.dp))
                     (availableHeight - baselineTop).coerceAtLeast(100.dp + bottomInset) else 100.dp + bottomInset),
             userScrollEnabled = !editingLayout && reorder.draggingKey == null && !resizing,
             overscrollEffect = null,
@@ -407,8 +435,10 @@ internal fun HomeScreen(
                 val currentStart by rememberUpdatedState(startDrag)
                 val currentDrag by rememberUpdatedState(drag)
                 Box(Modifier.fillMaxWidth()
+                    // Keep the scroll viewport full-width; only ordinary rows reserve list gutters.
+                    .padding(horizontal = if (widget?.widgetFullWidth == true) 0.dp else uiState.settings.listAppearance.horizontalPadding)
                     .then(if (dragging) Modifier else Modifier.animateItem())
-                    .zIndex(if (dragging || reorder.drop?.key == entry.key) 1f else 0f)
+                    .zIndex(if (dragging || reorder.drop?.key == entry.key) 3f else if (selectedWidget == entry.key) 2f else 0f)
                     .graphicsLayer { translationY = offset }
                     .onGloballyPositioned { coordinates = it }
                     .onSizeChanged { itemHeights[entry.key] = it.height }
@@ -433,7 +463,7 @@ internal fun HomeScreen(
                         grace == GraceWidget.Baseline -> Spacer(Modifier.fillMaxWidth().height(2.dp)
                             .testTag("home_baseline").onGloballyPositioned {
                                 if (baselineOffset == null && baselinePinned && !listState.isScrollInProgress && inputEnabled) {
-                                    val measured = ((it.positionInWindow().y - windowOffset.y) / density.density - resolvedTop.value).coerceIn(0f, 1600f)
+                                    val measured = ((it.positionInWindow().y - windowOffset.y - contentShift.value) / density.density - resolvedTop.value).coerceIn(0f, 1600f)
                                     capturedBaseline = measured
                                     actions.updateSettings { current ->
                                         if (current.homeLayout.baselineOffsetDp != null) current else
@@ -441,24 +471,23 @@ internal fun HomeScreen(
                                     }
                                 }
                             })
-                        grace == GraceWidget.ClockCalendar -> {
-                            HomeClockHeader(now, event, onDateClick, onClockClick,
-                                showBattery = true,
-                                clockStyle = uiState.settings.clockStyle,
-                                weather = uiState.weather.snapshot?.current.takeIf { uiState.settings.weatherEnabled &&
-                                    !uiState.isLoadingSettings && !uiState.settingsLoadFailed },
-                                weatherSnapshot = uiState.weather.snapshot.takeIf { uiState.settings.weatherEnabled &&
-                                    !uiState.isLoadingSettings && !uiState.settingsLoadFailed },
-                                showClock = uiState.settings.clockEnabled, showCalendar = uiState.settings.calendarAgenda,
-                                agendaEvents = if (uiState.settings.calendarAgenda) uiState.events else emptyList(),
-                                tasks = uiState.tasks.tasks, showTasks = uiState.settings.calendar.tasksOrg.enabled,
-                                taskPreferences = uiState.settings.calendar.tasksOrg,
-                                onTaskClick = { onDateClick() },
-                                calendarAboveClock = uiState.settings.calendarAboveClock,
-                                deprioritizeAllDay = uiState.settings.calendar.deprioritizeAllDay,
-                                interactive = inputEnabled, onLongClick = {}, onWeatherClick = onWeatherClick,
-                                clockActive = inputEnabled)
-                            }
+                        grace == GraceWidget.ClockCalendar -> HomeClockHeader(now, event, onDateClick, onClockClick,
+                            onCalendarClick = onCalendarClick, onCalendarLongClick = onCalendarLongClick,
+                            showBattery = true,
+                            clockStyle = uiState.settings.clockStyle,
+                            weather = uiState.weather.snapshot?.current.takeIf { uiState.settings.weatherEnabled &&
+                                !uiState.isLoadingSettings && !uiState.settingsLoadFailed },
+                            weatherSnapshot = uiState.weather.snapshot.takeIf { uiState.settings.weatherEnabled &&
+                                !uiState.isLoadingSettings && !uiState.settingsLoadFailed },
+                            showClock = uiState.settings.clockEnabled, showCalendar = uiState.settings.calendarAgenda,
+                            agendaEvents = if (uiState.settings.calendarAgenda) uiState.events else emptyList(),
+                            tasks = uiState.tasks.tasks, showTasks = uiState.settings.calendar.tasksOrg.enabled,
+                            taskPreferences = uiState.settings.calendar.tasksOrg,
+                            onTaskClick = { onDateClick() },
+                            calendarAboveClock = uiState.settings.calendarAboveClock,
+                            deprioritizeAllDay = uiState.settings.calendar.deprioritizeAllDay,
+                            interactive = inputEnabled, onLongClick = {}, onWeatherClick = onWeatherClick,
+                            clockActive = inputEnabled)
                         // Keep the slot while empty so its height springs to zero instead of
                         // disappearing in one measure pass. Following rows flow into the gap.
                         grace == GraceWidget.Media -> Box(Modifier.fillMaxWidth().animateContentSize(
@@ -478,7 +507,7 @@ internal fun HomeScreen(
                         }
                         widget != null -> PopupWidgetItem(widget, selected = selectedWidget == entry.key,
                             enabled = inputEnabled, editable = !homeLayout.editingLocked, haptics = uiState.settings.allowHapticFeedback,
-                            horizontalInset = 8.dp,
+                            horizontalInset = LauncherLayout.ContentInset,
                             maxHeight = 1600,
                             onChange = { layout, save -> updateWidget(entry.key, layout, save) },
                             onResizing = { resizing = it }, onDragStart = { startDrag(entry.key) },
@@ -491,9 +520,12 @@ internal fun HomeScreen(
                             val folder = app.folderId?.let(favoriteFolders::get)
                             if (folder != null && folder.id == fixedDockStack?.id) {
                                 // Pinned at bottom as dock, hide from scrollable entries
-                            } else if (folder?.isAppStack == true) AppStack(folder, uiState,
+                            } else if (folder?.isWidgetStack == true) rikazzz.everythinglauncher.ui.widgets.WidgetStack(folder, uiState,
+                                enabled = inputEnabled, onLongPress = { onEditFolder(folder) },
+                                modifier = Modifier.padding(horizontal = LauncherLayout.ContentInset, vertical = 4.dp))
+                            else if (folder?.isAppStack == true) AppStack(folder, uiState,
                                 onLaunch = { item, bounds -> rowGestures.onLaunchAt?.invoke(item, bounds) ?: onLaunchApp(item) },
-                                onDetails = onAppDetails, onEdit = { onEditFolder(folder) },
+                                onDetails = onAppDetails, onEdit = { onEditFolder(folder) }, gestures = rowGestures,
                                 modifier = Modifier.padding(horizontal = LauncherLayout.ContentInset - AppStackInset.dp, vertical = 4.dp))
                             else if (folder != null) FolderRow(folder, app = app,
                                 highlighted = highlightedAppKey == folder.key,
@@ -501,7 +533,7 @@ internal fun HomeScreen(
                                 onOpen = { onOpenFolder(folder, it) }, onLongClick = { onEditFolder(folder) },
                                 onDrag = { bounds, expanded -> onFolderDrag(folder, bounds, expanded) },
                                 onDragEnd = onFolderDragEnd,
-                                onSwipeLeft = rowGestures.onOpenFirst?.let { open -> { bounds -> open(app, bounds) } },
+                                gestures = rowGestures,
                                 showLabel = uiState.settings.listAppearance.showNames(favorites = true),
                                 categoryIcon = categoryIcon)
                             else LauncherAppRow(app, onClick = { onLaunchApp(app) }, onLongClick = { onAppDetails(app) },
@@ -538,11 +570,19 @@ internal fun HomeScreen(
                 }
             }
         }
-        if (selectedLayout != null) Surface(Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp).offset(y = minimumTop).zIndex(4f),
-            shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
+        }
+        if (selectedLayout != null) Box(Modifier.fillMaxWidth()
+            .padding(horizontal = 16.dp).offset(y = minimumTop).zIndex(4f)
+            .onSizeChanged { measuredToolbarHeight = it.height }) {
             PopupWidgetControls(selectedLayout,
-                onChange = { layout, save -> selectedWidget?.let { updateWidget(it, layout, save) } }, onDone = finishEditing)
+                onChange = { layout, save -> selectedWidget?.let { updateWidget(it, layout, save) } }, onDone = finishEditing,
+                onDelete = {
+                    selectedWidget?.let { key ->
+                        drafts.remove(key)
+                        selectedWidget = null
+                        actions.updatePopup(homeContentOwner(), emptyList()) { current -> current.filterNot { it.key == key } }
+                    }
+                })
         }
         if (editingLayout) HomeEditHandle(
             label = stringResource(R.string.homepage_adjust_height), changed = topOffset != 0f, tag = "home_position_handle",
@@ -552,7 +592,7 @@ internal fun HomeScreen(
                 val current = (topSpace.value + topOffset + anchorOffset).coerceIn(minimumTop.value, maximumTop.value)
                 topOffset = (current + delta).coerceIn(minimumTop.value, maximumTop.value) - topSpace.value - anchorOffset
             }, onFinished = { onTopOffsetChange(topOffset) },
-            modifier = Modifier.padding(start = uiState.settings.listAppearance.startPadding, end = uiState.settings.listAppearance.endPadding)
+            modifier = Modifier.padding(horizontal = uiState.settings.listAppearance.horizontalPadding)
                 .offset(y = (if (baselineIndex >= 0) baselineTop else resolvedTop) - 20.dp))
 
         // Fixed bottom dock with apps + Grace button (up to 5 grids, center-aligned)
@@ -597,6 +637,8 @@ internal fun LegacyHomeClockHeader(
     showCalendar: Boolean = true,
     calendarAboveClock: Boolean = false,
     onWeatherClick: () -> Unit = {},
+    onCalendarClick: () -> Unit = onDateClick,
+    onCalendarLongClick: (() -> Unit)? = null,
 ) {
     val appearance = LocalLauncherAppearance.current
     val visibility = clockStyle.effectiveVisibility
@@ -620,13 +662,7 @@ internal fun LegacyHomeClockHeader(
         colors.getValue(ClockColorPart.Weekday), colors.getValue(ClockColorPart.Month), colors.getValue(ClockColorPart.Day)).text
     val dateText = clockCalendarDate(now, locale, weekdayVisible && !week, dateVisible,
         colors.getValue(ClockColorPart.Weekday), colors.getValue(ClockColorPart.Month), colors.getValue(ClockColorPart.Day))
-    val calendarText = buildAnnotatedString {
-        append(dateText)
-        if (battery != null) {
-            if (length > 0) append("  ")
-            withStyle(SpanStyle(color = colors.getValue(ClockColorPart.Battery))) { append("$battery%") }
-        }
-    }
+    val calendarText = dateText
     val completeDate = clockCalendarDate(now, locale, true, true,
         colors.getValue(ClockColorPart.Weekday), colors.getValue(ClockColorPart.Month), colors.getValue(ClockColorPart.Day)).text
     val dateDescription = stringResource(R.string.date_calendar_action, completeDate)
@@ -634,9 +670,9 @@ internal fun LegacyHomeClockHeader(
     val largeFaceVisible = if (week) weekdayVisible else clockVisible
     val smallClockVisible = week && clockVisible
     val agendaVisible = showCalendar && event != null
-    val rowVisible = smallClockVisible || calendarText.isNotEmpty() || visibleWeather != null
+    val rowVisible = smallClockVisible || calendarText.isNotEmpty() || battery != null || visibleWeather != null
     val calendarContentVisible = rowVisible || agendaVisible
-    val calendarAction = showCalendar && (calendarText.isNotEmpty() || agendaVisible)
+    val calendarAction = calendarContentVisible
 
     val clockContent: @Composable () -> Unit = {
         if (largeFaceVisible) ClockFace(
@@ -648,8 +684,8 @@ internal fun LegacyHomeClockHeader(
                 .semantics { contentDescription = if (week) dateDescription else clockDescription }
                 .then(if (interactive) Modifier.combinedClickable(
                     interactionSource = remember { MutableInteractionSource() }, indication = null,
-                    onClick = if (week) onDateClick else onClockClick,
-                    onLongClick = onLongClick,
+                    onClick = if (week) onCalendarClick else onClockClick,
+                    onLongClick = if (week) onCalendarLongClick ?: onLongClick else onLongClick,
                 ) else Modifier)
                 .padding(horizontal = LauncherLayout.ContentInset),
             color = if (week) colors.getValue(ClockColorPart.Weekday) else appearance.text,
@@ -684,27 +720,33 @@ internal fun LegacyHomeClockHeader(
                             ClockTimeLabel(
                                 time = clockText, style = clockStyle, textStyle = dateStyle,
                                 modifier = Modifier.alignByBaseline().testTag("${clockTag}_time")
-                                    .semantics { contentDescription = clockDescription }
-                                    .then(if (interactive) Modifier.combinedClickable(
-                                        interactionSource = remember { MutableInteractionSource() }, indication = null,
-                                        onClick = onClockClick,
-                                        onLongClick = onLongClick,
-                                    ) else Modifier),
+                                    .semantics { contentDescription = clockText },
                                 color = appearance.text,
                                 digitColors = digitColors,
                             )
-                            if (calendarText.isNotEmpty()) Text(" · ", modifier = Modifier.alignByBaseline(), color = appearance.text, style = dateStyle)
+                            if (calendarText.isNotEmpty() || battery != null) Text(" · ", modifier = Modifier.alignByBaseline(), color = appearance.text, style = dateStyle)
                         }
                         if (calendarText.isNotEmpty()) Text(
                             text = calendarText,
-                            modifier = Modifier.weight(1f, fill = false).alignByBaseline().testTag("${dateTag}_text"),
+                            modifier = Modifier.weight(1f, fill = false).alignByBaseline().testTag("${dateTag}_text")
+                                .then(if (interactive) Modifier.combinedClickable(
+                                    interactionSource = remember { MutableInteractionSource() }, indication = null,
+                                    onClick = onCalendarClick, onLongClick = onCalendarLongClick ?: onLongClick,
+                                ) else Modifier),
                             color = appearance.text,
                             style = dateStyle,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (battery != null) {
+                            if (calendarText.isNotEmpty()) Spacer(Modifier.width(8.dp))
+                            Text("$battery%", Modifier.alignByBaseline().then(if (interactive) Modifier.combinedClickable(
+                                interactionSource = remember { MutableInteractionSource() }, indication = null,
+                                onClick = {}, onLongClick = onLongClick,
+                            ) else Modifier), color = colors.getValue(ClockColorPart.Battery), style = dateStyle)
+                        }
                         if (visibleWeather != null) {
-                            if (smallClockVisible || calendarText.isNotEmpty()) Spacer(Modifier.width(10.dp))
+                            if (smallClockVisible || calendarText.isNotEmpty() || battery != null) Spacer(Modifier.width(10.dp))
                             HomeWeather(visibleWeather, colors.getValue(ClockColorPart.Weather), dateStyle, Modifier.alignByBaseline(),
                                 onClick = onWeatherClick.takeIf { interactive }, onLongClick = onLongClick.takeIf { interactive },
                                 iconColor = colors.getValue(ClockColorPart.WeatherIcon))
@@ -727,6 +769,7 @@ internal fun LegacyHomeClockHeader(
         Spacer(Modifier.height(if (largeFaceVisible && calendarContentVisible) 2.dp else 0.dp)
             .onGloballyPositioned { onAnchorOffsetChange(it.positionInParent().y.roundToInt()) })
         if (calendarAboveClock) clockContent() else calendarContent()
+        if (largeFaceVisible || calendarContentVisible) Spacer(Modifier.height(ClockRegions().bottomPadding.dp))
     }
 }
 

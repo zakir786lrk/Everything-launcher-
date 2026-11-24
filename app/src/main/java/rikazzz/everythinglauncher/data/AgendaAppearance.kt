@@ -19,7 +19,31 @@ enum class AgendaHourWeatherField {
     AirQuality, UV, Gusts, Precipitation, Visibility, CloudCover, Pressure, DewPoint,
     RainProbability, SnowProbability, IceProbability, ThunderstormProbability, Rain, Snow, Ice, Thunderstorm;
 
-    val supportsChart: Boolean get() = this in setOf(Temperature, FeelsLike, Humidity, WindDirection, AirQuality)
+    val supportsChart: Boolean get() = this !in setOf(Icon, Chart, Description)
+}
+
+enum class HourWeatherChartType { Bar, Line }
+
+data class HourWeatherFieldStyle(
+    val chartType: HourWeatherChartType = HourWeatherChartType.Line,
+    val wavy: Boolean = false,
+    val barWidth: Int = 18,
+    val useValueColorText: Boolean = false,
+    val useValueColorChart: Boolean = true,
+    val alwaysShowText: Boolean = false,
+    val alwaysShowChart: Boolean = false,
+) {
+    fun normalized() = copy(barWidth = barWidth.coerceIn(BarWidthRange))
+
+    companion object {
+        val BarWidthRange = 4..32
+
+        fun defaults(field: AgendaHourWeatherField) = HourWeatherFieldStyle(
+            chartType = if (field == AgendaHourWeatherField.AirQuality) HourWeatherChartType.Bar else HourWeatherChartType.Line,
+            wavy = field == AgendaHourWeatherField.Humidity,
+            alwaysShowText = field in setOf(AgendaHourWeatherField.Icon, AgendaHourWeatherField.Temperature),
+        )
+    }
 }
 
 data class AgendaAppearance(
@@ -45,11 +69,17 @@ data class AgendaAppearance(
         AgendaHourWeatherField.Icon, AgendaHourWeatherField.Temperature,
     ),
     val hourWeatherChartFields: Set<AgendaHourWeatherField> = emptySet(),
+    val hourWeatherStyles: Map<AgendaHourWeatherField, HourWeatherFieldStyle> = emptyMap(),
     val hourWeatherChartsExpanded: Boolean = true,
     val hourWeatherChartHeight: Int = 120,
+    val hourWeatherColumnWidth: Int = 80,
     val showUndatedTasks: Boolean = true,
     val lastCreateAction: AgendaCreateAction = AgendaCreateAction.Event,
+    /** References a shared widget stack instead of owning a separate agenda widget. */
+    val widgetStackKey: String? = null,
 ) {
+    fun hourWeatherStyle(field: AgendaHourWeatherField) = hourWeatherStyles[field] ?: HourWeatherFieldStyle.defaults(field)
+
     fun normalized() = copy(
         titleText = titleText.take(500),
         headerOrder = (headerOrder + AgendaHeaderField.entries).distinct(),
@@ -58,9 +88,13 @@ data class AgendaAppearance(
         hourWeatherOrder = normalizedHourWeatherOrder(hourWeatherOrder),
         hourWeatherSelected = hourWeatherSelected - AgendaHourWeatherField.Chart,
         hourWeatherChartFields = hourWeatherChartFields.filter { it.supportsChart }.toSet(),
+        hourWeatherStyles = hourWeatherStyles.filterKeys { it != AgendaHourWeatherField.Chart }
+            .mapValues { it.value.normalized() }.filter { (field, style) -> style != HourWeatherFieldStyle.defaults(field) },
         hourWeatherChartHeight = hourWeatherChartHeight.coerceIn(60, 240),
+        hourWeatherColumnWidth = hourWeatherColumnWidth.coerceIn(HourWeatherColumnWidthRange),
         calendarContent = calendarContent.normalized(),
         taskContent = taskContent.normalized(),
+        widgetStackKey = widgetStackKey?.takeIf { it.startsWith("folder:") && it.length > "folder:".length },
     )
 
     fun encode(): String = normalized().let { value -> JSONObject().apply {
@@ -82,13 +116,28 @@ data class AgendaAppearance(
         put("hourWeatherOrder", JSONArray(value.hourWeatherOrder.map { it.name }))
         put("hourWeatherSelected", JSONArray(value.hourWeatherSelected.map { it.name }))
         put("hourWeatherChartFields", JSONArray(value.hourWeatherChartFields.map { it.name }))
+        put("hourWeatherStyles", JSONObject().apply {
+            value.hourWeatherStyles.forEach { (field, style) -> put(field.name, JSONObject().apply {
+                put("chartType", style.chartType.name)
+                put("wavy", style.wavy)
+                put("barWidth", style.barWidth)
+                put("useValueColorText", style.useValueColorText)
+                put("useValueColorChart", style.useValueColorChart)
+                put("alwaysShowText", style.alwaysShowText)
+                put("alwaysShowChart", style.alwaysShowChart)
+            }) }
+        })
         put("hourWeatherChartsExpanded", value.hourWeatherChartsExpanded)
         put("hourWeatherChartHeight", value.hourWeatherChartHeight)
+        put("hourWeatherColumnWidth", value.hourWeatherColumnWidth)
         put("showUndatedTasks", value.showUndatedTasks)
         put("lastCreateAction", value.lastCreateAction.name)
+        put("widgetStackKey", value.widgetStackKey)
     }.toString() }
 
     companion object {
+        val HourWeatherColumnWidthRange = 40..160
+
         private fun normalizedHourWeatherOrder(saved: List<AgendaHourWeatherField>): List<AgendaHourWeatherField> {
             // Move unchanged legacy defaults to the useful-first order without overwriting custom ordering.
             val legacy = listOf("Icon", "Temperature", "Description", "FeelsLike", "Humidity", "Wind", "Gusts", "AirQuality", "UV",
@@ -147,11 +196,28 @@ data class AgendaAppearance(
                 hourWeatherOrder = fields("hourWeatherOrder", AgendaHourWeatherField.entries) ?: defaults.hourWeatherOrder,
                 hourWeatherSelected = fields("hourWeatherSelected", AgendaHourWeatherField.entries)?.toSet() ?: defaults.hourWeatherSelected,
                 hourWeatherChartFields = fields("hourWeatherChartFields", AgendaHourWeatherField.entries)?.toSet() ?: defaults.hourWeatherChartFields,
+                hourWeatherStyles = AgendaHourWeatherField.entries.mapNotNull { field ->
+                    data.optJSONObject("hourWeatherStyles")?.optJSONObject(field.name)?.let { style ->
+                        val fallback = HourWeatherFieldStyle.defaults(field)
+                        field to HourWeatherFieldStyle(
+                            chartType = HourWeatherChartType.entries.firstOrNull { it.name == style.optString("chartType") }
+                                ?: fallback.chartType,
+                            wavy = style.optBoolean("wavy", fallback.wavy),
+                            barWidth = style.optInt("barWidth", fallback.barWidth),
+                            useValueColorText = style.optBoolean("useValueColorText", fallback.useValueColorText),
+                            useValueColorChart = style.optBoolean("useValueColorChart", fallback.useValueColorChart),
+                            alwaysShowText = style.optBoolean("alwaysShowText", style.optBoolean("alwaysShow", fallback.alwaysShowText)),
+                            alwaysShowChart = style.optBoolean("alwaysShowChart", false),
+                        )
+                    }
+                }.toMap(),
                 hourWeatherChartsExpanded = data.optBoolean("hourWeatherChartsExpanded", defaults.hourWeatherChartsExpanded),
                 hourWeatherChartHeight = data.optInt("hourWeatherChartHeight", defaults.hourWeatherChartHeight),
+                hourWeatherColumnWidth = data.optInt("hourWeatherColumnWidth", defaults.hourWeatherColumnWidth),
                 showUndatedTasks = data.optBoolean("showUndatedTasks", defaults.showUndatedTasks),
                 lastCreateAction = AgendaCreateAction.entries.firstOrNull { it.name == data.optString("lastCreateAction") }
                     ?: defaults.lastCreateAction,
+                widgetStackKey = data.optString("widgetStackKey").takeIf { it.startsWith("folder:") },
             ).normalized()
         }.getOrDefault(AgendaAppearance())
     }

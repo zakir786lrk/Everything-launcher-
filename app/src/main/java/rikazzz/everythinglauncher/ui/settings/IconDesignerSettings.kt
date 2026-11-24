@@ -2,6 +2,9 @@
 
 package rikazzz.everythinglauncher.ui.settings
 
+import rikazzz.everythinglauncher.ui.theme.FontShadowText as Text
+
+import rikazzz.everythinglauncher.ui.theme.LocalFontShadowEnabled
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -33,8 +36,7 @@ import rikazzz.everythinglauncher.ui.LauncherUiState
 import rikazzz.everythinglauncher.ui.components.LauncherIcon
 import rikazzz.everythinglauncher.ui.components.LauncherSymbol
 import rikazzz.everythinglauncher.ui.components.LauncherLayout
-import rikazzz.everythinglauncher.ui.components.endPadding
-import rikazzz.everythinglauncher.ui.components.startPadding
+import rikazzz.everythinglauncher.ui.components.horizontalPadding
 import rikazzz.everythinglauncher.ui.theme.LocalLauncherAppearance
 import rikazzz.everythinglauncher.ui.theme.LocalLauncherTypography
 import rikazzz.everythinglauncher.ui.theme.rememberLauncherAppearance
@@ -52,7 +54,7 @@ internal fun IconDesignerPreview(
     val appearance = rememberLauncherAppearance(uiState.textMode, uiState.themedIcons,
         iconSize = design.iconSize, iconDisplay = rowDisplay)
     Box(modifier.fillMaxWidth().testTag("icon_designer_preview").clipToBounds(), contentAlignment = Alignment.Center) {
-        CompositionLocalProvider(LocalLauncherAppearance provides appearance) {
+        CompositionLocalProvider(LocalFontShadowEnabled provides true, LocalLauncherAppearance provides appearance) {
             MaterialTheme(typography = LocalLauncherTypography.current) {
                 if (all) AllIconsPreview(uiState, choice, store, dynamicColors, themeColors)
                 else if (selectedApp == null) {
@@ -103,8 +105,8 @@ private fun AllIconsPreview(uiState: LauncherUiState, choice: ItemIcon, store: I
         stringResource(R.string.icon_designer_legacy_apps))
     val iconSize = 40.dp * ((choice.design?.iconSize ?: 100) / 100f)
     val appearance = LocalLauncherAppearance.current
-    Column(Modifier.fillMaxSize().padding(start = uiState.settings.listAppearance.startPadding,
-        end = uiState.settings.listAppearance.endPadding, top = 12.dp, bottom = 12.dp).testTag("icon_designer_grid"),
+    Column(Modifier.fillMaxSize().padding(horizontal = uiState.settings.listAppearance.horizontalPadding,
+        vertical = 12.dp).testTag("icon_designer_grid"),
         verticalArrangement = Arrangement.Center) {
             rows.forEachIndexed { row, entries ->
                 val app = entries.firstOrNull()

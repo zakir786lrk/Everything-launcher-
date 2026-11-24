@@ -2,6 +2,7 @@
 
 package rikazzz.everythinglauncher.ui.settings
 
+import rikazzz.everythinglauncher.ui.theme.LocalFontShadowEnabled
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -60,8 +61,7 @@ import rikazzz.everythinglauncher.data.MediaPlayerStyle
 import rikazzz.everythinglauncher.data.IconDesign
 import rikazzz.everythinglauncher.ui.LauncherActions
 import rikazzz.everythinglauncher.ui.LauncherUiState
-import rikazzz.everythinglauncher.ui.components.endPadding
-import rikazzz.everythinglauncher.ui.components.startPadding
+import rikazzz.everythinglauncher.ui.components.horizontalPadding
 import rikazzz.everythinglauncher.ui.home.HomeMediaPlayerPreview
 import rikazzz.everythinglauncher.ui.theme.LauncherAppearance
 import rikazzz.everythinglauncher.ui.theme.LocalLauncherAppearance
@@ -242,12 +242,11 @@ private fun MediaAppearancePreview(uiState: LauncherUiState, media: NowPlaying, 
     val description = listOfNotNull(media.title, media.artist ?: media.playerName).joinToString(", ")
     Box(modifier.testTag("media_style_preview").clipToBounds()
         .clearAndSetSemantics { contentDescription = description }, contentAlignment = Alignment.CenterStart) {
-        CompositionLocalProvider(LocalLauncherAppearance provides appearance) {
+        CompositionLocalProvider(LocalFontShadowEnabled provides true, LocalLauncherAppearance provides appearance) {
             MaterialTheme(typography = LocalLauncherTypography.current) {
                 Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                     HomeMediaPlayerPreview(media, Modifier.padding(
-                        start = uiState.settings.listAppearance.startPadding,
-                        end = uiState.settings.listAppearance.endPadding, top = 12.dp, bottom = 12.dp),
+                        horizontal = uiState.settings.listAppearance.horizontalPadding, vertical = 12.dp),
                         style = style, iconDesign = uiState.settings.iconDesign?.design ?: IconDesign())
                 }
             }
@@ -294,7 +293,7 @@ private fun MediaPresetPreview(media: NowPlaying, appearance: LauncherAppearance
     val previewAppearance = remember(appearance, contentColor) {
         appearance.copy(darkText = contentColor.luminance() < .5f, textColor = contentColor)
     }
-    CompositionLocalProvider(LocalLauncherAppearance provides previewAppearance) {
+    CompositionLocalProvider(LocalFontShadowEnabled provides false, LocalLauncherAppearance provides previewAppearance) {
         MaterialTheme(typography = LocalLauncherTypography.current) {
             Layout(modifier = modifier.clearAndSetSemantics {}, content = { HomeMediaPlayerPreview(media) }) { measurables, constraints ->
                 val desktopWidth = 360.dp.roundToPx().coerceAtLeast(1)

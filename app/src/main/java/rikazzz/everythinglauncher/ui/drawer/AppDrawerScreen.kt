@@ -22,10 +22,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import rikazzz.everythinglauncher.ui.theme.FontShadowText as Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -64,8 +61,8 @@ import rikazzz.everythinglauncher.ui.components.LauncherAppRow
 import rikazzz.everythinglauncher.ui.components.FolderRow
 import rikazzz.everythinglauncher.ui.components.LauncherLayout
 import rikazzz.everythinglauncher.ui.components.LocalListAppearance
-import rikazzz.everythinglauncher.ui.components.startPadding
-import rikazzz.everythinglauncher.ui.components.endPadding
+import rikazzz.everythinglauncher.ui.components.horizontalPadding
+import rikazzz.everythinglauncher.ui.components.appListEndPadding
 import rikazzz.everythinglauncher.ui.components.stableStatusBarInset
 import rikazzz.everythinglauncher.ui.theme.LocalLauncherAppearance
 import rikazzz.everythinglauncher.ui.settings.categoryLabel
@@ -151,7 +148,7 @@ fun AppDrawerScreen(
         // may occupy this area after jumping to a later letter. The small, real
         // bottom inset lets LazyColumn naturally clamp sections near the end
         // without clipping scrolling rows above the navigation bar.
-        contentPadding = PaddingValues(start = listAppearance.startPadding, end = listAppearance.endPadding, top = topSpace, bottom = 24.dp + bottomInset),
+        contentPadding = PaddingValues(start = listAppearance.horizontalPadding, end = listAppearance.appListEndPadding, top = topSpace, bottom = 24.dp + bottomInset),
         userScrollEnabled = selectedLetter == null,
     ) {
         items(
@@ -187,7 +184,7 @@ fun AppDrawerScreen(
                         highlighted = highlightedAppKey == item.app.key,
                         notifications = notificationsFor(item.app),
                     )
-                    is DrawerItem.Folder -> if (item.folder.isAppStack && appStackContent != null) appStackContent(item.folder) else FolderRow(
+                    is DrawerItem.Folder -> if ((item.folder.isAppStack || item.folder.isWidgetStack) && appStackContent != null) appStackContent(item.folder) else FolderRow(
                         showLabel = listAppearance.showNames(favorites = false),
                         folder = item.folder,
                         app = folderApps[item.folder.id] ?: item.folder.asApp(),
@@ -197,15 +194,13 @@ fun AppDrawerScreen(
                         onLongClick = { onEditFolder(item.folder) },
                         onDrag = { bounds, expanded -> onFolderDrag(item.folder, bounds, expanded) },
                         onDragEnd = onFolderDragEnd,
-                        onSwipeLeft = rowGestures.onOpenFirst?.let { open -> { bounds ->
-                            open(folderApps[item.folder.id] ?: item.folder.asApp(), bounds)
-                        } },
+                        gestures = rowGestures,
                     )
                     is DrawerItem.PrivateApp -> LauncherAppRow(
                         showLabel = listAppearance.showNames(favorites = false, insideFolder = true),
                         app = item.app, onClick = { onLaunchApp(item.app) }, onLongClick = { onAppDetails(item.app) },
                         onSwipeRight = { if (privateAppsPublic) onAppShortcuts(item.app, it) },
-                        gestures = if (privateAppsPublic) rowGestures else AppRowGestures(onLaunchAt = rowGestures.onLaunchAt),
+                        gestures = if (privateAppsPublic) rowGestures else AppRowGestures(onLaunchAt = rowGestures.onLaunchAt, popupsEnabled = false),
                         highlighted = highlightedAppKey == item.app.key,
                         modifier = Modifier.animateItem(fadeOutSpec = null),
                     )

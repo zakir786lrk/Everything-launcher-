@@ -17,6 +17,7 @@ data class LauncherSettings(
     val showBatteryPercentage: Boolean = true,
     val allowHapticFeedback: Boolean = true,
     val allowScreenRotation: Boolean = true,
+    val rememberScreenPosition: Boolean = false,
     val useDynamicColors: Boolean = true,
     val themeColor: Int = 0xFF6750A4.toInt(),
     val paletteStyle: PaletteStyle = PaletteStyle.TonalSpot,
@@ -54,6 +55,7 @@ data class LauncherSettings(
     val appFontId: String? = null,
     val fontLibrary: FontLibrary = FontLibrary(),
     val fontColors: FontColors = FontColors(),
+    val fontShadow: FontShadow = FontShadow(),
     val listAppearance: ListAppearance = ListAppearance(),
     val applyFontToSettings: Boolean = true,
     val privateSpace: ProfileSettings = ProfileSettings(),
@@ -116,13 +118,16 @@ data class LauncherFolder(
     val autoHideApps: Boolean = false,
     /** Same membership/placement storage, rendered inline instead of as a named folder. */
     val isAppStack: Boolean = false,
+    /** A widget-only group, displayed as a horizontal pager on every surface. */
+    val widgetStack: WidgetStackStyle? = null,
 ) {
     val key: String get() = "folder:$id"
+    val isWidgetStack: Boolean get() = widgetStack != null
 
     /** Local identity only: folders must never be sent to Android as activities. */
     fun asApp() = LauncherApp(
         componentName = android.content.ComponentName("rikazzz.everythinglauncher", key),
-        label = name, icon = null, folderId = id, isAppStack = isAppStack,
+        label = name, icon = null, folderId = id, isAppStack = isAppStack, isWidgetStack = isWidgetStack,
     )
 }
 

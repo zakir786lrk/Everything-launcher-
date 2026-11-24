@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Launcher settings and app categories live in Room. Legacy favorites migrate
@@ -35,6 +36,7 @@ class LauncherSettingsRepository(private val database: LauncherDatabase) {
                     appListAtBottom = entry.appListAtBottom,
                     autoHideApps = entry.autoHideApps,
                     isAppStack = entry.isAppStack,
+                    widgetStack = WidgetStackStyle.decode(entry.widgetStackJson),
                 )
             },
         )
@@ -43,61 +45,7 @@ class LauncherSettingsRepository(private val database: LauncherDatabase) {
     suspend fun updateSettings(settings: LauncherSettings) {
         // The raw hideFavoriteNames flag is stored untouched; hidden-icon safety is
         // derived on read so the user's preference survives a Hidden round-trip.
-        dao.saveSettings(LauncherSettingsEntity(
-            clockEnabled = settings.clockEnabled,
-            calendarAboveClock = settings.calendarAboveClock,
-            mediaAlwaysVisible = settings.mediaAlwaysVisible,
-            mediaKeepWhilePlaying = settings.mediaKeepWhilePlaying,
-            dismissResistance = settings.dismissResistance.coerceIn(0, 90),
-            dismissThresholdDp = settings.dismissThresholdDp.coerceIn(24, 160),
-            mediaAppKey = settings.mediaAppKey,
-            mediaStyleJson = settings.mediaStyle.encode(),
-            graceButtonJson = settings.graceButton.encode(),
-            calendarAgenda = settings.calendarAgenda,
-            showBatteryPercentage = settings.showBatteryPercentage,
-            allowHapticFeedback = settings.allowHapticFeedback,
-            allowScreenRotation = settings.allowScreenRotation,
-            useDynamicColors = settings.useDynamicColors,
-            themeColor = settings.themeColor,
-            paletteStyle = settings.paletteStyle.name,
-            darkMode = settings.darkMode.name,
-            amoledMode = settings.amoledMode,
-            iconPackPackage = settings.iconPackPackage,
-            iconDesignJson = settings.iconDesign?.encode(),
-            iconPackPackagesJson = normalizeIconPackOrder(settings.iconPackPackages).takeIf { it.isNotEmpty() }
-                ?.let { JSONArray(it).toString() },
-            mediaPlayer = settings.mediaPlayer,
-            weatherEnabled = settings.weatherEnabled,
-            weatherForecastDays = settings.weatherForecastDays.coerceIn(1, 14),
-            weatherLocationId = settings.weatherLocationId,
-            weatherConnectionJson = settings.weatherConnection.encode(),
-            clockAppKey = settings.clockAppKey,
-            clockStyleJson = settings.clockStyle.encode(),
-            agendaAppearanceJson = settings.agendaAppearance.encode(),
-            homeLayoutJson = settings.homeLayout.encode(),
-            hideStatusBar = settings.hideStatusBar,
-            hideAlphabet = settings.hideAlphabet,
-            hideFavoriteNames = settings.hideFavoriteNames,
-            dimWallpaper = settings.dimWallpaper,
-            wallpaperDimAmount = settings.wallpaperDimAmount.coerceIn(0, 100),
-            blurWallpaper = settings.blurWallpaper,
-            wallpaperBlurRadius = settings.wallpaperBlurRadius.coerceIn(0, 48),
-            appFontId = settings.appFontId,
-            fontLibraryJson = settings.fontLibrary.encode(),
-            fontColorsJson = settings.fontColors.encode(),
-            listAppearanceJson = settings.listAppearance.encode(),
-            applyFontToSettings = settings.applyFontToSettings,
-            privateSpaceJson = settings.privateSpace.encode(),
-            workProfileJson = settings.workProfile.encode(),
-            homeGesturesJson = settings.homeGestures.encode(),
-            searchJson = settings.search.encode(),
-            shortcutsFoldersJson = settings.shortcutsFolders.encode(),
-            digitalWellbeingJson = settings.digitalWellbeing.encode(),
-            widgetScreenJson = settings.widgetScreen.encode(),
-            appCategoriesJson = settings.appCategories?.let(AppCategory::encode),
-            preferNonAccessibility = settings.preferNonAccessibility,
-            calendarPreferencesJson = settings.calendar.encode(),
-        ))
+        dao.saveSettings(settings.toEntity())
     }
 
     /** Commit presentation and its widget together; only then release IDs no surface still owns. */
@@ -106,11 +54,15 @@ class LauncherSettingsRepository(private val database: LauncherDatabase) {
         val previous = listOf(AgendaWidgetKey, AgendaWidgetDraftKey).flatMap { key ->
             items.popup(key)?.let { PopupItem.decode(it.itemsJson) }.orEmpty()
         }.mapNotNull { it.widget?.widgetId }.toSet()
-        val selected = widget?.takeIf { it.hasWidget }
+        val appearance = style.normalized()
+        appearance.widgetStackKey?.let { key ->
+            require(dao.folder(key.removePrefix("folder:"))?.widgetStackJson != null) { "Widget stack no longer exists" }
+        }
+        val selected = if (appearance.widgetStackKey != null) null else widget?.takeIf { it.hasWidget }
         require(selected == null || selected.widgetId in previous)
         val current = dao.readSettings()?.toSettings() ?: LauncherSettings()
         // An appearance draft must not reset the last action chosen on the agenda itself.
-        updateSettings(current.copy(agendaAppearance = style.normalized().copy(
+        updateSettings(current.copy(agendaAppearance = appearance.copy(
             lastCreateAction = current.agendaAppearance.lastCreateAction)))
         if (selected == null) items.deletePopup(AgendaWidgetKey)
         else items.savePopup(AppPopupEntity(AgendaWidgetKey,
@@ -174,13 +126,34 @@ class LauncherSettingsRepository(private val database: LauncherDatabase) {
         if (key.isNotBlank()) dao.hideApp(HiddenAppEntity(key))
     }
 
+    /** Move the retired stack-wide background onto unchanged members before the first edit/read. */
+    suspend fun migrateWidgetStackBackgrounds() = database.withTransaction {
+        val items = database.itemsDao()
+        dao.readFolders().forEach { folder ->
+            val encoded = folder.widgetStackJson ?: return@forEach
+            val legacy = runCatching { JSONObject(encoded) }.getOrNull() ?: return@forEach
+            if (!legacy.has("backgroundColor") && !legacy.has("backgroundAlpha")) return@forEach
+            val popup = items.popup("folder:${folder.id}")
+            // Work on the stored JSON so unrelated fields, identities and order survive untouched.
+            val members = if (popup == null) JSONArray() else
+                runCatching { JSONArray(popup.itemsJson) }.getOrNull() ?: return@forEach
+            val changed = migrateWidgetStackMemberBackgrounds(members, legacy)
+            if (changed && popup != null) items.savePopup(popup.copy(itemsJson = members.toString()))
+            // This same transaction marks the conversion complete, including empty stacks.
+            dao.upsertFolder(folder.copy(widgetStackJson = requireNotNull(WidgetStackStyle.decode(encoded)).encode()))
+        }
+    }
+
     suspend fun saveFolder(folder: LauncherFolder) {
         require(folder.id.isNotBlank()) { "A folder must have a stable id" }
+        require(!folder.isAppStack || !folder.isWidgetStack) { "A group cannot be both an app and widget stack" }
         val name = folder.name.trim()
         require(name.isNotEmpty()) { "A folder name must not be blank" }
-        val keys = folder.appKeys.filter(String::isNotBlank).distinct()
+        val keys = if (folder.isWidgetStack) emptyList() else folder.appKeys.filter(String::isNotBlank).distinct()
         database.withTransaction {
-            dao.upsertFolder(LauncherFolderEntity(folder.id, name, folder.placement.name, folder.appListAtBottom, folder.autoHideApps, folder.isAppStack))
+            migrateWidgetStackBackgrounds()
+            dao.upsertFolder(LauncherFolderEntity(folder.id, name, folder.placement.name, folder.appListAtBottom,
+                folder.autoHideApps && !folder.isWidgetStack, folder.isAppStack, folder.widgetStack?.encode()))
             val itemsDao = database.itemsDao()
             val previous = itemsDao.popup(folder.key)?.let { PopupItem.decode(it.itemsJson) }.orEmpty()
             // Membership callers must not discard widgets or move them to the end.
@@ -190,6 +163,13 @@ class LauncherSettingsRepository(private val database: LauncherDatabase) {
             } + remaining.map { PopupItem(it) }
             itemsDao.savePopup(AppPopupEntity(folder.key, PopupItem.encode(next)))
         }
+    }
+
+    /** Style edits must neither restore a deleted stack nor overwrite newer placement/name edits. */
+    suspend fun updateWidgetStackStyle(id: String, style: WidgetStackStyle) = database.withTransaction {
+        migrateWidgetStackBackgrounds()
+        val folder = checkNotNull(dao.folder(id)?.takeIf { it.widgetStackJson != null }) { "Widget stack no longer exists" }
+        dao.upsertFolder(folder.copy(widgetStackJson = style.encode()))
     }
 
     suspend fun updateFolder(id: String, name: String? = null, placement: FolderPlacement? = null,
@@ -223,10 +203,14 @@ class LauncherSettingsRepository(private val database: LauncherDatabase) {
         itemsDao.resetIcon(key)
         dao.deleteFolder(id)
         val settings = dao.readSettings()?.toSettings()
-        if (settings?.appCategories != null) updateSettings(settings.copy(appCategories = settings.appCategories.map {
-            it.copy(itemKeys = it.itemKeys - key)
-        }))
-        widgets
+        if (settings != null) updateSettings(settings.copy(
+            appCategories = settings.appCategories?.map { it.copy(itemKeys = it.itemKeys - key) },
+            agendaAppearance = if (settings.agendaAppearance.widgetStackKey == key)
+                settings.agendaAppearance.copy(widgetStackKey = null) else settings.agendaAppearance,
+        ))
+        val retained = itemsDao.readPopups().flatMap { PopupItem.decode(it.itemsJson) }
+            .mapNotNull { it.widget?.widgetId }.toSet() + (settings?.homeLayout?.widgetId ?: -1)
+        widgets.filterNot { it in retained }
     }
 
     /** Moves saved references to apps whose launcher activity an update renamed ([renamedAppKeys]). */
@@ -260,7 +244,65 @@ class LauncherSettingsRepository(private val database: LauncherDatabase) {
     }
 }
 
-private fun LauncherSettingsEntity.toSettings() = LauncherSettings(
+internal fun LauncherSettings.toEntity() = LauncherSettingsEntity(
+    clockEnabled = clockEnabled,
+    calendarAboveClock = calendarAboveClock,
+    mediaAlwaysVisible = mediaAlwaysVisible,
+    mediaKeepWhilePlaying = mediaKeepWhilePlaying,
+    dismissResistance = dismissResistance.coerceIn(0, 90),
+    dismissThresholdDp = dismissThresholdDp.coerceIn(24, 160),
+    mediaAppKey = mediaAppKey,
+    mediaStyleJson = mediaStyle.encode(),
+    graceButtonJson = graceButton.encode(),
+    calendarAgenda = calendarAgenda,
+    showBatteryPercentage = showBatteryPercentage,
+    allowHapticFeedback = allowHapticFeedback,
+    allowScreenRotation = allowScreenRotation,
+    rememberScreenPosition = rememberScreenPosition,
+    useDynamicColors = useDynamicColors,
+    themeColor = themeColor,
+    paletteStyle = paletteStyle.name,
+    darkMode = darkMode.name,
+    amoledMode = amoledMode,
+    iconPackPackage = iconPackPackage,
+    iconDesignJson = iconDesign?.encode(),
+    iconPackPackagesJson = normalizeIconPackOrder(iconPackPackages).takeIf { it.isNotEmpty() }
+        ?.let { JSONArray(it).toString() },
+    mediaPlayer = mediaPlayer,
+    weatherEnabled = weatherEnabled,
+    weatherForecastDays = weatherForecastDays.coerceIn(1, 14),
+    weatherLocationId = weatherLocationId,
+    weatherConnectionJson = weatherConnection.encode(),
+    clockAppKey = clockAppKey,
+    clockStyleJson = clockStyle.encode(),
+    agendaAppearanceJson = agendaAppearance.encode(),
+    homeLayoutJson = homeLayout.encode(),
+    hideStatusBar = hideStatusBar,
+    hideAlphabet = hideAlphabet,
+    hideFavoriteNames = hideFavoriteNames,
+    dimWallpaper = dimWallpaper,
+    wallpaperDimAmount = wallpaperDimAmount.coerceIn(0, 100),
+    blurWallpaper = blurWallpaper,
+    wallpaperBlurRadius = wallpaperBlurRadius.coerceIn(0, 48),
+    appFontId = appFontId,
+    fontLibraryJson = fontLibrary.encode(),
+    fontColorsJson = fontColors.encode(),
+    fontShadowJson = fontShadow.encode(),
+    listAppearanceJson = listAppearance.encode(),
+    applyFontToSettings = applyFontToSettings,
+    privateSpaceJson = privateSpace.encode(),
+    workProfileJson = workProfile.encode(),
+    homeGesturesJson = homeGestures.encode(),
+    searchJson = search.encode(),
+    shortcutsFoldersJson = shortcutsFolders.encode(),
+    digitalWellbeingJson = digitalWellbeing.encode(),
+    widgetScreenJson = widgetScreen.encode(),
+    appCategoriesJson = appCategories?.let(AppCategory::encode),
+    preferNonAccessibility = preferNonAccessibility,
+    calendarPreferencesJson = calendar.encode(),
+)
+
+internal fun LauncherSettingsEntity.toSettings() = LauncherSettings(
     clockEnabled = clockEnabled,
     calendarAboveClock = calendarAboveClock,
     mediaAlwaysVisible = mediaAlwaysVisible,
@@ -274,6 +316,7 @@ private fun LauncherSettingsEntity.toSettings() = LauncherSettings(
     showBatteryPercentage = showBatteryPercentage,
     allowHapticFeedback = allowHapticFeedback,
     allowScreenRotation = allowScreenRotation,
+    rememberScreenPosition = rememberScreenPosition,
     useDynamicColors = useDynamicColors,
     themeColor = themeColor,
     paletteStyle = decodePaletteStyle(paletteStyle),
@@ -301,6 +344,7 @@ private fun LauncherSettingsEntity.toSettings() = LauncherSettings(
     appFontId = appFontId,
     fontLibrary = FontLibrary.decode(fontLibraryJson, appFontId),
     fontColors = FontColors.decode(fontColorsJson),
+    fontShadow = FontShadow.decode(fontShadowJson),
     listAppearance = ListAppearance.decode(listAppearanceJson, hideFavoriteNames),
     applyFontToSettings = applyFontToSettings,
     privateSpace = ProfileSettings.decode(privateSpaceJson),

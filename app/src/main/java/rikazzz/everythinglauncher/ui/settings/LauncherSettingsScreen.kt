@@ -2,7 +2,10 @@
 
 package rikazzz.everythinglauncher.ui.settings
 
+import rikazzz.everythinglauncher.ui.theme.LocalFontShadowEnabled
+import android.os.Build
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.ui.platform.LocalContext
 import rikazzz.everythinglauncher.data.LauncherCustomPreferences
@@ -76,6 +79,7 @@ import rikazzz.everythinglauncher.ui.LauncherActions
 import rikazzz.everythinglauncher.ui.LauncherUiState
 import rikazzz.everythinglauncher.ui.components.LauncherIcon
 import rikazzz.everythinglauncher.ui.components.LauncherSymbol
+import rikazzz.everythinglauncher.ui.theme.withFontShadow
 import rikazzz.everythinglauncher.ui.theme.LocalLauncherTypography
 import rikazzz.everythinglauncher.ui.theme.SystemLauncherTypography
 import kotlinx.coroutines.CancellationException
@@ -84,15 +88,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 internal enum class SettingsPage {
-    Root, Productivity, Clock, ClockStyle, Calendar, CalendarSources, CalendarApp, Weather, WeatherApp, Themes, Advanced, Language, About, HiddenApps, Folders, FolderEditor,
+    Root, Productivity, Clock, ClockStyle, Calendar, CalendarSources, CalendarApp, Weather, WeatherApp, Themes, Advanced, Backup, Language, About, HiddenApps, Folders, FolderEditor,
     Changelog, Licenses, AppLicense, IconPacks, IconDesigner, IconDesignerApp, PrivateSpace, PrivateSpaceEditor, Search,
     MediaPlayer, GraceButton, GraceAction, GraceApp, GraceShortcut, GraceFolder, Gestures, WorkProfile, WorkProfileEditor,
-    LabGraceButton, LabGesture, LabPopup, LabAccessibility, LabDismiss, Fonts, FontColors, ListAppearance, Alphabet, ShortcutsFolders, AppStacks,
+    LabGraceButton, LabGesture, LabPopup, LabAccessibility, LabDismiss, Fonts, FontColors, FontShadow, ListAppearance, Alphabet, ShortcutsFolders, AppStacks, WidgetStacks,
     GraceButtonAppearance, GraceButtonPosition, AgendaAppearance, SearchAppearance, MediaPlayerAppearance,
-    WidgetScreen, WidgetScreenEditor, Homepage, AppList, FeedScreen, StatusScreen, DigitalWellbeing, TabletsFoldables,
-    Wallpaper, WallpaperDesigner,
+    WidgetScreen, WidgetScreenEditor, HomeScreen, Homepage, AppList, FeedScreen, StatusScreen, DigitalWellbeing, TabletsFoldables,
+    Wallpaper, WallpaperDesigner, Screens,
     AppCategories, CategoryEditor, TasksOrg, TaskLists,
-    SetupWizard, Backup,
+    SetupWizard,
 }
 
 /** The window's existing system-bar owner follows the active settings surface. */
@@ -169,11 +173,12 @@ fun LauncherSettingsScreen(
         uiState.isLoadingSettings, uiState.settingsLoadFailed, uiState.settingsSaveFailed,
     )
     val context = LocalContext.current
-    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { LauncherCustomPreferences.getInstance(context) }
     val reportSystemBarBackground by rememberUpdatedState(LocalSettingsSystemBarBackground.current)
     DisposableEffect(Unit) { onDispose { reportSystemBarBackground(SettingsSystemBarBackground.Surface) } }
-    MaterialTheme(typography = if (uiState.settings.applyFontToSettings) LocalLauncherTypography.current else SystemLauncherTypography) {
-     CompositionLocalProvider(LocalSettingsStorageState provides storage) {
+    MaterialTheme(typography = (if (uiState.settings.applyFontToSettings) LocalLauncherTypography.current else SystemLauncherTypography)
+        .withFontShadow(androidx.compose.ui.graphics.Shadow.None)) {
+     CompositionLocalProvider(LocalFontShadowEnabled provides false, LocalSettingsStorageState provides storage) {
       NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -182,7 +187,7 @@ fun LauncherSettingsScreen(
             translationX = distance * direction * rootExit.value
         }.background(if (currentEntry?.destination?.route in listOf(SettingsPage.ClockStyle.name, SettingsPage.IconDesigner.name,
             SettingsPage.ListAppearance.name, SettingsPage.Alphabet.name, SettingsPage.GraceButtonAppearance.name, SettingsPage.GraceButtonPosition.name,
-            SettingsPage.MediaPlayerAppearance.name))
+            SettingsPage.MediaPlayerAppearance.name, SettingsPage.FontShadow.name))
             Color.Transparent else MaterialTheme.colorScheme.surfaceContainer),
         enterTransition = { settingsEnter(distance) },
         exitTransition = { settingsExit(distance) },
@@ -236,11 +241,11 @@ fun LauncherSettingsScreen(
                     SettingsPage.CategoryEditor -> AppCategoryEditorSettings(entry.arguments?.getString("categoryId"), uiState, actions, back)
                     SettingsPage.DigitalWellbeing -> DigitalWellbeingSettingsScreen(uiState, actions, back)
                     SettingsPage.TabletsFoldables -> SettingsPlaceholder(stringResource(R.string.settings_tablets_foldables), "tablets_foldables_settings", back)
+                    SettingsPage.HomeScreen -> HomeScreenSettings(uiState, actions, back) { navigate(SettingsPage.Homepage) }
                     SettingsPage.Homepage -> rikazzz.everythinglauncher.ui.overlays.HomepageEditorScreen(
                         uiState, actions, actions.toggleFavorite, actions.reorderFavorites, onDone = back)
                     SettingsPage.AppList -> rikazzz.everythinglauncher.ui.overlays.AppListEditorScreen(uiState, actions, back)
                     SettingsPage.FeedScreen -> FeedSettingsPage(uiState, actions, customPrefs, back)
-                    SettingsPage.Backup -> BackupSettingsScreen(uiState, actions, back)
                     SettingsPage.StatusScreen -> SettingsPlaceholder(stringResource(R.string.settings_status_screen), "status_screen_settings", back)
                     SettingsPage.Clock -> ClockSettings(uiState, actions, back) { navigate(SettingsPage.ClockStyle) }
                     SettingsPage.SetupWizard -> SetupWizardScreen(onDone = back, actions = actions, uiState = uiState)
@@ -329,8 +334,10 @@ fun LauncherSettingsScreen(
                     SettingsPage.SearchAppearance -> SettingsPlaceholder(stringResource(R.string.settings_search), "search_appearance", back)
                     SettingsPage.MediaPlayerAppearance -> MediaPlayerAppearanceSettings(uiState, actions, back)
                     SettingsPage.ClockStyle -> ClockStyleSettings(uiState, actions, back) { navigate(SettingsPage.Fonts) }
-                    SettingsPage.Fonts -> FontSettings(uiState, actions, back) { navigate(SettingsPage.FontColors) }
+                    SettingsPage.Fonts -> FontSettings(uiState, actions, back,
+                        onFontColors = { navigate(SettingsPage.FontColors) }, onFontShadow = { navigate(SettingsPage.FontShadow) })
                     SettingsPage.FontColors -> FontColorSettings(uiState, actions, back)
+                    SettingsPage.FontShadow -> FontShadowSettings(uiState, uiState.settings.fontShadow, back, actions.applyFontShadow)
                     SettingsPage.Wallpaper -> WallpaperSettings(uiState, actions, back,
                         onDesigner = { navigate(SettingsPage.WallpaperDesigner) },
                         onChooseWallpaper = { if (isCurrent()) actions.chooseWallpaper() })
@@ -366,8 +373,10 @@ fun LauncherSettingsScreen(
                     SettingsPage.TasksOrg -> TasksSettings(uiState, actions, back,
                         onLists = { navigate(SettingsPage.TaskLists) }, onAppearance = { navigate(SettingsPage.ClockStyle) })
                     SettingsPage.TaskLists -> TasksListsSettings(uiState, actions, back)
-                    SettingsPage.Advanced -> AdvancedSettings(uiState, actions, back, navigate,
+                    SettingsPage.Advanced -> AdvancedSettings(back, navigate,
                         onChooseDefaultHome = { if (isCurrent()) actions.requestDefaultHome() })
+                    SettingsPage.Backup -> BackupSettings(actions, back, uiState.backupInProgress)
+                    SettingsPage.Screens -> ScreenSettings(uiState, actions, back)
                     SettingsPage.Language -> LanguageSettings(back)
                     SettingsPage.LabGraceButton -> LabGraceButtonSettings(uiState, actions, back)
                     SettingsPage.LabGesture -> LabGestureSettings(uiState, actions, back)
@@ -397,6 +406,9 @@ fun LauncherSettingsScreen(
                     SettingsPage.AppStacks -> FolderSettings(uiState, actions, back, appStacks = true) { folderId ->
                         if (isCurrent()) navController.navigate("FolderEditor/${Uri.encode(folderId)}")
                     }
+                    SettingsPage.WidgetStacks -> WidgetStackSettings(uiState, actions, back, onEdit = { folderId ->
+                        if (isCurrent()) navController.navigate("FolderEditor/${Uri.encode(folderId)}")
+                    })
                     SettingsPage.FolderEditor -> FolderEditorSettings(entry.arguments?.getString("folderId"), uiState, actions, back,
                         onEditIcon = { app ->
                             if (isCurrent()) {
@@ -438,23 +450,27 @@ private fun SettingsHome(
     val langSummary = appLanguageSummary(languageTag)
     var searchQuery by remember { mutableStateOf("") }
 
-    val categories = listOf(
-        SettingsPage.Productivity to LauncherSymbol.Folder,
-        SettingsPage.Search to LauncherSymbol.Search,
-        SettingsPage.Gestures to LauncherSymbol.Gesture,
-        SettingsPage.Themes to LauncherSymbol.Palette,
-        SettingsPage.FeedScreen to LauncherSymbol.Outbound,
-        SettingsPage.Backup to LauncherSymbol.History2,
-        SettingsPage.SetupWizard to LauncherSymbol.Check,
-        SettingsPage.Advanced to LauncherSymbol.Settings,
-        SettingsPage.Language to LauncherSymbol.Language,
-        SettingsPage.About to LauncherSymbol.Info,
-    )
+    val categories = buildList {
+        add(SettingsPage.Productivity to LauncherSymbol.Folder)
+        add(SettingsPage.Search to LauncherSymbol.Search)
+        add(SettingsPage.Gestures to LauncherSymbol.Gesture)
+        add(SettingsPage.Themes to LauncherSymbol.Palette)
+        add(SettingsPage.FeedScreen to LauncherSymbol.Outbound)
+        add(SettingsPage.Backup to LauncherSymbol.Cloud)
+        add(SettingsPage.SetupWizard to LauncherSymbol.Check)
+        add(SettingsPage.Advanced to LauncherSymbol.Settings)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(SettingsPage.Language to LauncherSymbol.Language)
+        }
+        add(SettingsPage.About to LauncherSymbol.Info)
+    }
 
     val searchableItems = remember(langSummary) {
         listOf(
+            SearchableSetting("Home Screen & Lock", "Enable/disable home screen, scrolling & stretch lock", "Productivity", SettingsPage.HomeScreen, listOf("home", "lock", "scroll", "stretch", "favorites"), LauncherSymbol.Home),
             SearchableSetting("Folders", "Organize apps into folders and home categories", "Productivity", SettingsPage.Folders, listOf("folder", "categories", "home", "drawer"), LauncherSymbol.Folder),
-            SearchableSetting("App Stacks", "Swipeable app piles and dock shortcuts", "Productivity", SettingsPage.AppStacks, listOf("stack", "dock", "pile"), LauncherSymbol.Apps),
+            SearchableSetting("App Stacks", "Swipeable app piles and dock shortcuts", "Productivity", SettingsPage.AppStacks, listOf("stack", "dock", "pile"), LauncherSymbol.Steppers),
+            SearchableSetting("Widget Stacks", "Swipeable widget pagers for Home, Agenda & App List", "Productivity", SettingsPage.WidgetStacks, listOf("widget", "stack", "pager", "carousel"), LauncherSymbol.Widgets),
             SearchableSetting("Work Profile", "Manage enterprise work apps and notifications", "Productivity", SettingsPage.WorkProfile, listOf("work", "enterprise", "badge"), LauncherSymbol.Work),
             SearchableSetting("Private Space", "Secure hidden profile protected by authentication", "Productivity", SettingsPage.PrivateSpace, listOf("private", "secure", "lock", "hidden", "auth"), LauncherSymbol.Lock),
             SearchableSetting("Dynamic Apps & Recents", "Recently installed, opened, and frequently used apps", "Productivity", SettingsPage.Productivity, listOf("dynamic", "recents", "frequent", "installed"), LauncherSymbol.Star),
@@ -468,13 +484,15 @@ private fun SettingsHome(
             SearchableSetting("Wallpaper & Effects", "Set wallpaper, dim amount, and blur radius", "Themes", SettingsPage.Wallpaper, listOf("wallpaper", "dim", "blur", "background", "photo"), LauncherSymbol.Palette),
             SearchableSetting("Colors & Themes", "Dynamic Material colors, palette styles, dark & AMOLED mode", "Themes", SettingsPage.Themes, listOf("dark", "amoled", "light", "palette", "dynamic", "color", "accent"), LauncherSymbol.Palette),
             SearchableSetting("Fonts & Typography", "Select font family, customized sizes and text weights", "Themes", SettingsPage.Fonts, listOf("font", "text", "typography", "style"), LauncherSymbol.Edit),
+            SearchableSetting("Font Shadow", "Customize wallpaper text shadow offset, blur and spread", "Themes", SettingsPage.FontShadow, listOf("shadow", "text", "outline", "font"), LauncherSymbol.Edit),
             SearchableSetting("Icon Packs", "Apply third-party icon packs from Play Store or system packs", "Themes", SettingsPage.IconPacks, listOf("icons", "pack", "themed", "monochrome"), LauncherSymbol.Apps),
             SearchableSetting("Icon Designer", "Customize icon shape, badge, size, and background mask", "Themes", SettingsPage.IconDesigner, listOf("design", "shape", "badge", "size", "mask"), LauncherSymbol.Palette),
             SearchableSetting("App List & Alphabet Rail", "A-Z letter navigation, layout spacing, and section headers", "Themes", SettingsPage.ListAppearance, listOf("alphabet", "rail", "az", "scrub", "list", "spacing"), LauncherSymbol.Steppers),
             SearchableSetting("Google News Feed", "Left feed page, topics, search bar and weather integration", "Feed & Pages", SettingsPage.FeedScreen, listOf("news", "feed", "google", "rss", "articles", "left"), LauncherSymbol.Outbound),
             SearchableSetting("Feed Region & Countries", "Select from 40+ countries or enter any custom country code", "Feed & Pages", SettingsPage.FeedScreen, listOf("region", "country", "language", "feed", "international", "world"), LauncherSymbol.Language),
             SearchableSetting("Widget Screen Page", "Right widget screen page with customizable layout and widgets", "Feed & Pages", SettingsPage.WidgetScreen, listOf("widgets", "screen", "right", "clock", "weather"), LauncherSymbol.Widgets),
-            SearchableSetting("Backup & Restore", "Export launcher settings with timestamp or restore past backup", "Backup", SettingsPage.Backup, listOf("backup", "restore", "export", "import", "timestamp", "json"), LauncherSymbol.History2),
+            SearchableSetting("Backup & Restore", "Export & restore unified .zip backups compatible with Grace Launcher, or restore legacy .json", "Backup", SettingsPage.Backup, listOf("backup", "restore", "export", "import", "zip", "json", "grace"), LauncherSymbol.Cloud),
+            SearchableSetting("Screen Position & Rotation", "Remember screen position and rotation settings", "Advanced", SettingsPage.Screens, listOf("screen", "position", "remember", "rotation"), LauncherSymbol.SplitscreenLandscape),
             SearchableSetting("Setup Wizard & Permissions", "Re-run welcome wizard, explore features & grant permissions", "Setup", SettingsPage.SetupWizard, listOf("setup", "wizard", "permission", "guide", "welcome", "contacts", "calendar"), LauncherSymbol.Check),
             SearchableSetting("Clock & Alarm Style", "Clock layout, battery percentage, and alarm clock app", "Advanced", SettingsPage.Clock, listOf("clock", "time", "battery", "alarm", "style"), LauncherSymbol.Clock),
             SearchableSetting("Calendar & Agenda", "Calendar accounts, agenda display, and event sources", "Advanced", SettingsPage.Calendar, listOf("calendar", "agenda", "events", "schedule"), LauncherSymbol.Calendar),
@@ -496,7 +514,6 @@ private fun SettingsHome(
             it.keywords.any { k -> k.contains(q, ignoreCase = true) }
         }
     }
-
     SettingsScaffold(stringResource(R.string.settings_title), "settings_root", onBack) { padding ->
         SettingsList(padding) {
             item(key = "settings_search_field") {
@@ -523,7 +540,6 @@ private fun SettingsHome(
                     )
                 )
             }
-
             if (searchQuery.isNotBlank()) {
                 if (filteredItems.isEmpty()) {
                     item(key = "no_search_results") {
@@ -565,7 +581,7 @@ private fun SettingsHome(
                             SettingsPage.Gestures -> stringResource(R.string.settings_gestures)
                             SettingsPage.Themes -> stringResource(R.string.settings_themes)
                             SettingsPage.FeedScreen -> "Feed & Screen Pages"
-                            SettingsPage.Backup -> "Backup & Restore"
+                            SettingsPage.Backup -> stringResource(R.string.settings_backup)
                             SettingsPage.SetupWizard -> "Setup Wizard & Permissions"
                             SettingsPage.Advanced -> stringResource(R.string.settings_advanced)
                             SettingsPage.Language -> stringResource(R.string.settings_language)
@@ -577,7 +593,7 @@ private fun SettingsHome(
                             SettingsPage.Gestures -> "Everything button actions, swipes & gestures"
                             SettingsPage.Themes -> "Wallpapers, colors, fonts, icons & layout"
                             SettingsPage.FeedScreen -> "Google News Feed, world regions & widget screen"
-                            SettingsPage.Backup -> "Export & import launcher settings with timestamp"
+                            SettingsPage.Backup -> stringResource(R.string.settings_backup_summary)
                             SettingsPage.SetupWizard -> "Setup guide, feature tour & permissions setup"
                             SettingsPage.Advanced -> stringResource(R.string.settings_advanced_summary)
                             SettingsPage.Language -> appLanguageSummary(languageTag)

@@ -95,6 +95,8 @@ import androidx.core.net.toUri
 import androidx.core.content.ContextCompat
 import rikazzz.everythinglauncher.R
 import rikazzz.everythinglauncher.platform.openCalendarEvent
+import rikazzz.everythinglauncher.platform.openDefaultCalendar
+import rikazzz.everythinglauncher.data.DateAction
 import rikazzz.everythinglauncher.data.tasks.TasksRepository
 import rikazzz.everythinglauncher.data.tasks.TaskCompletionResult
 import rikazzz.everythinglauncher.MainActivity
@@ -103,6 +105,8 @@ import rikazzz.everythinglauncher.data.LauncherApp
 import rikazzz.everythinglauncher.data.icons.GraceButtonIcon
 import rikazzz.everythinglauncher.data.LauncherCustomPreferences
 import rikazzz.everythinglauncher.data.LauncherFolder
+import rikazzz.everythinglauncher.data.PopupGesture
+import rikazzz.everythinglauncher.data.notifications.AppNotification
 import rikazzz.everythinglauncher.data.LauncherShortcut
 import rikazzz.everythinglauncher.data.PrivateSpaceDisplay
 import rikazzz.everythinglauncher.data.PrivateSpaceFolderId
@@ -155,9 +159,12 @@ import rikazzz.everythinglauncher.ui.settings.LocalSettingsSystemBarBackground
 import rikazzz.everythinglauncher.ui.settings.SettingsSystemBarBackground
 import rikazzz.everythinglauncher.ui.theme.LocalWallpaperFontColor
 import rikazzz.everythinglauncher.ui.overlays.LauncherOverlay
+import kotlinx.coroutines.CompletableDeferred
+import rikazzz.everythinglauncher.ui.overlays.DismissNotificationsDialog
 import rikazzz.everythinglauncher.ui.overlays.LauncherOverlays
 import rikazzz.everythinglauncher.ui.theme.GraceLauncherTheme
 import rikazzz.everythinglauncher.ui.theme.LocalLauncherAppearance
+import rikazzz.everythinglauncher.ui.theme.LocalFontShadowEnabled
 import rikazzz.everythinglauncher.ui.theme.rememberLauncherAppearance
 import rikazzz.everythinglauncher.ui.theme.rememberLauncherHaptics
 import rikazzz.everythinglauncher.ui.theme.WallpaperBlur
@@ -185,7 +192,7 @@ fun LauncherRoute(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { LauncherCustomPreferences.getInstance(context) }
     val chooseAppStoreTitle = stringResource(R.string.choose_app_store)
     val launchView = LocalView.current
     val appTransitions = LocalAppTransitions.current
@@ -217,16 +224,27 @@ fun LauncherRoute(
             viewModel.setCalendarForeground(false)
         }
     }
+    var screenFlowPending by rememberSaveable { mutableStateOf(false) }
+    fun launchScreenFlow(launch: () -> Unit) {
+        screenFlowPending = true
+        try { launch() } catch (error: Exception) { screenFlowPending = false; throw error }
+    }
+    val widgetSetupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        screenFlowPending = false
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) {
+        screenFlowPending = false
         viewModel.refreshSchedule()
         viewModel.refreshCalendarSources()
     }
     val homeRoleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        screenFlowPending = false
         viewModel.refreshProfiles()
     }
     val tasksPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        screenFlowPending = false
         viewModel.refreshTasks()
     }
     fun finishTask(id: Long) {
@@ -243,17 +261,20 @@ fun LauncherRoute(
     }
     var taskAwaitingWritePermission by rememberSaveable { mutableStateOf<Long?>(null) }
     val tasksWritePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        screenFlowPending = false
         val id = taskAwaitingWritePermission
         taskAwaitingWritePermission = null
         if (granted && id != null) finishTask(id)
         else if (!granted) Toast.makeText(context, R.string.tasks_write_permission_required, Toast.LENGTH_LONG).show()
     }
     val mediaAccessLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        screenFlowPending = false
         viewModel.refreshApps()
     }
     val breezyRepository = remember(context) { BreezyWeatherRepository(context) }
     var weatherPermissionRequested by rememberSaveable { mutableStateOf(false) }
     val weatherPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        screenFlowPending = false
         viewModel.refreshWeather()
     }
     LaunchedEffect(uiState.settingsSaveFailed, uiState.settingsLoadFailed) {
@@ -275,7 +296,11 @@ fun LauncherRoute(
     }
 
     val openSystemApp: (Intent) -> Unit = { intent ->
-        runCatching { context.startActivity(intent) }.onFailure {
+        runCatching {
+            if (intent.component == ComponentName(context, WidgetSetupActivity::class.java)) {
+                launchScreenFlow { widgetSetupLauncher.launch(intent) }
+            } else context.startActivity(intent)
+        }.onFailure {
             Toast.makeText(context, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
         }
     }
@@ -364,6 +389,8 @@ fun LauncherRoute(
         openPrivateSpaceSettings = { (context as? Activity)?.let(viewModel.privateSpaceController::openSettings) },
         reorderPrivateApps = viewModel::reorderPrivateApps,
         resetPrivateSpaceAppearance = viewModel::resetPrivateSpaceAppearance,
+        exportBackup = viewModel::exportBackup,
+        restoreBackup = viewModel::restoreBackup,
         reorderWorkApps = viewModel::reorderWorkApps,
         resetWorkProfileAppearance = viewModel::resetWorkProfileAppearance,
         openWorkProfileSettings = {
@@ -371,7 +398,7 @@ fun LauncherRoute(
             runCatching { context.startActivity(Intent(Settings.ACTION_SYNC_SETTINGS)) }
                 .onFailure { openSystemApp(Intent(Settings.ACTION_SETTINGS)) }
         },
-        requestCalendarAccess = { permissionLauncher.launch(Manifest.permission.READ_CALENDAR) },
+        requestCalendarAccess = { launchScreenFlow { permissionLauncher.launch(Manifest.permission.READ_CALENDAR) } },
         addWidget = {
             when {
                 uiState.isLoadingSettings || uiState.settingsLoadFailed -> Toast.makeText(context, R.string.settings_storage_load_error, Toast.LENGTH_SHORT).show()
@@ -389,6 +416,7 @@ fun LauncherRoute(
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
         },
         refreshWeather = { viewModel.refreshWeather() },
+        refreshWeatherIfNeeded = { viewModel.refreshWeather(force = false) },
         requestWeatherAccess = {
             when {
                 viewModel.uiState.value.settings.weatherConnection.mode == WeatherConnectionMode.Gadgetbridge -> viewModel.refreshWeather()
@@ -401,7 +429,7 @@ fun LauncherRoute(
                     Uri.fromParts("package", context.packageName, null)))
                 else -> {
                     weatherPermissionRequested = true
-                    weatherPermissionLauncher.launch(BreezyWeatherRepository.READ_PERMISSION)
+                    launchScreenFlow { weatherPermissionLauncher.launch(BreezyWeatherRepository.READ_PERMISSION) }
                 }
             }
         },
@@ -428,13 +456,15 @@ fun LauncherRoute(
         },
         dismissMedia = viewModel::dismissMedia,
         dismissNotification = viewModel::dismissNotification,
+        dismissAllNotifications = viewModel::dismissAllNotifications,
+        performNotificationAction = viewModel::performNotificationAction,
         openNotification = { key, revision ->
             viewModel.openNotification(key, revision).also { opened ->
                 if (!opened) Toast.makeText(context, R.string.notification_unavailable, Toast.LENGTH_SHORT).show()
             }
         },
         requestMediaAccess = {
-            runCatching { mediaAccessLauncher.launch(MediaAccess.settingsIntent(context)) }
+            runCatching { launchScreenFlow { mediaAccessLauncher.launch(MediaAccess.settingsIntent(context)) } }
                 .onFailure { openSystemApp(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
         },
         controlMedia = { sessionId, command ->
@@ -445,7 +475,7 @@ fun LauncherRoute(
             }
         },
         requestDefaultHome = {
-            runCatching { homeRoleLauncher.launch(DefaultHome.requestIntent(context)) }
+            runCatching { launchScreenFlow { homeRoleLauncher.launch(DefaultHome.requestIntent(context)) } }
                 .onFailure { openSystemApp(Intent(Settings.ACTION_HOME_SETTINGS)) }
         },
         requestUsageAccess = { openSystemApp(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) },
@@ -530,7 +560,7 @@ fun LauncherRoute(
         refreshAgenda = viewModel::refreshSchedule,
         refreshCalendarSources = viewModel::refreshCalendarSources,
         refreshTasks = viewModel::refreshTasks,
-        requestTasksAccess = { tasksPermissionLauncher.launch(TasksRepository.ReadPermission) },
+        requestTasksAccess = { launchScreenFlow { tasksPermissionLauncher.launch(TasksRepository.ReadPermission) } },
         openTasksAccessSettings = { openSystemApp(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
             Uri.fromParts("package", context.packageName, null))) },
         openTasks = {
@@ -554,7 +584,7 @@ fun LauncherRoute(
                     finishTask(task.id)
                 } else {
                     taskAwaitingWritePermission = task.id
-                    tasksWritePermissionLauncher.launch(TasksRepository.WritePermission)
+                    launchScreenFlow { tasksWritePermissionLauncher.launch(TasksRepository.WritePermission) }
                 }
             }
         },
@@ -563,6 +593,7 @@ fun LauncherRoute(
         refreshIconPacks = viewModel::refreshApps,
         refreshApps = viewModel::refreshApps,
         applyClockStyle = viewModel::applyClockStyle,
+        applyFontShadow = viewModel::applyFontShadow,
         applyAgendaAppearance = viewModel::applyAgendaAppearance,
         discardAgendaWidgetDraft = viewModel::discardAgendaWidgetDraft,
         applyMediaStyle = viewModel::applyMediaStyle,
@@ -574,6 +605,7 @@ fun LauncherRoute(
         hideApp = viewModel::hideApp,
         setFolderAutoHide = viewModel::setFolderAutoHide,
         saveFolder = viewModel::saveFolder,
+        updateWidgetStackStyle = viewModel::updateWidgetStackStyle,
         saveAppCategory = viewModel::saveAppCategory,
         updateAppCategory = viewModel::updateAppCategory,
         deleteAppCategory = viewModel::deleteAppCategory,
@@ -619,8 +651,9 @@ fun LauncherRoute(
             uiState = uiState,
             widgetEditRequest = widgetEditRequest,
             returnHomeRequests = viewModel.returnHomeRequests,
+            preserveScreenOnReturn = { screenFlowPending || viewModel.privateSpaceController.state.value.authenticating },
             onCalendarHomeVisible = viewModel::setCalendarHomeVisible,
-            onDateClick = { permissionLauncher.launch(Manifest.permission.READ_CALENDAR) },
+            onDateClick = { launchScreenFlow { permissionLauncher.launch(Manifest.permission.READ_CALENDAR) } },
             onClockClick = {
                 val key = uiState.settings.clockAppKey
                 if (key?.startsWith("profile:") == true) {
@@ -658,10 +691,12 @@ internal fun LauncherScreen(
     initialDrawerOpen: Boolean = false,
     widgetEditRequest: Int = 0,
     onCalendarHomeVisible: (Boolean) -> Unit = {},
+    preserveScreenOnReturn: () -> Boolean = { false },
 ) {
-    var drawerOpen by rememberSaveable { mutableStateOf(initialDrawerOpen) }
+    val homeEnabled = uiState.settings.homeLayout.enabled
+    var drawerOpen by rememberSaveable(homeEnabled) { mutableStateOf(initialDrawerOpen || !homeEnabled) }
     val context = LocalContext.current
-    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { LauncherCustomPreferences.getInstance(context) }
     val feedEnabled = customPrefs.feedScreenEnabled
     val widgetEnabled = uiState.settings.widgetScreen.enabled
     val homeIndex = if (feedEnabled) 1 else 0
@@ -702,8 +737,8 @@ internal fun LauncherScreen(
     var privateFolderWasOpen by remember { mutableStateOf(false) }
     val latestUiState by rememberUpdatedState(uiState)
     val latestActions by rememberUpdatedState(actions)
-    val firstItemScope = rememberCoroutineScope()
-    var firstItemJob by remember { mutableStateOf<Job?>(null) }
+    val popupGestureScope = rememberCoroutineScope()
+    var popupGestureJob by remember { mutableStateOf<Job?>(null) }
     val privateExpanded = privateListOpen && uiState.privateContentVisible && uiState.settings.privateSpace.display == PrivateSpaceDisplay.List
     val privateFolder = uiState.privateFolder.takeIf {
         uiState.settings.privateSpace.enabled && uiState.settings.privateSpace.display != PrivateSpaceDisplay.NormalApp &&
@@ -732,19 +767,20 @@ internal fun LauncherScreen(
     }
     val categoryNow by rememberHomeTime()
     val categoryHeadphones by rememberHeadphonesConnected()
-    val categoryTime = categoryNow.atZone(java.time.ZoneId.systemDefault()).toLocalTime()
+    val categoryTime = categoryNow.atZone(java.time.ZoneId.systemDefault())
     val categoryMinute = categoryTime.hour * 60 + categoryTime.minute
+    val categoryDay = categoryTime.dayOfWeek
     val model = remember(appListApps, uiState.folders, privateFolder, privateExpanded, privateApps, recentFolder, workFolder, workExpanded,
-        workApps, usageRanking, appListLayout, appCategories, categoryMembers, categoryHeadphones, categoryMinute) {
+        workApps, usageRanking, appListLayout, appCategories, categoryMembers, categoryHeadphones, categoryMinute, categoryDay) {
         AppListModel(appListApps, uiState.folders, privateFolder, privateExpanded, privateApps, recentFolder, workFolder, workExpanded, workApps,
             usageRanking = usageRanking, appList = appListLayout, categories = appCategories, categoryItems = categoryMembers,
-            headphones = categoryHeadphones, minuteOfDay = categoryMinute)
+            headphones = categoryHeadphones, minuteOfDay = categoryMinute, dayOfWeek = categoryDay)
     }
     val drawerState = rememberLazyListState()
     val appearance = rememberLauncherAppearance(uiState.textMode, uiState.themedIcons,
         uiState.settings.iconDesign?.design?.iconSize ?: 100, uiState.settings.iconDisplay)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val calendarHomeVisible = !drawerOpen && overlay == null && !systemActionAccess &&
+    val calendarHomeVisible = homeEnabled && !drawerOpen && overlay == null && !systemActionAccess &&
         homePager.settledPage == homeIndex && !homePager.isScrollInProgress
     val reportCalendarHomeVisible by rememberUpdatedState(onCalendarHomeVisible)
     DisposableEffect(lifecycle, calendarHomeVisible) {
@@ -761,7 +797,7 @@ internal fun LauncherScreen(
     }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE) firstItemJob?.cancel()
+            if (event == Lifecycle.Event.ON_PAUSE) popupGestureJob?.cancel()
             val transition = currentButtonTransition ?: return@LifecycleEventObserver
             when (event) {
                 Lifecycle.Event.ON_PAUSE -> {
@@ -860,7 +896,7 @@ internal fun LauncherScreen(
         if (folderOpen && drawerOpen && uiState.settings.privateSpace.display != PrivateSpaceDisplay.Folder) overlay = null
     }
     val screenActions = actions.copy(moveWidget = {
-        pageScope.launch { homePager.scrollToPage(0) }
+        pageScope.launch { homePager.scrollToPage(homeIndex) }
         editingWidgetScreen = false; drawerOpen = false; selectedLetter = null; overlay = null; editingHome = true
     })
     LaunchedEffect(drawerOpen, workFolder, uiState.settings.workProfile.display) {
@@ -887,14 +923,25 @@ internal fun LauncherScreen(
         },
     )
 
+    suspend fun returnHome() {
+        popupGestureJob?.cancel()
+        drawerOpen = !latestUiState.settings.homeLayout.enabled; selectedLetter = null; overlay = null; editingHome = false
+        editingWidgetScreen = false
+        privateListOpen = false; workListOpen = false
+        homePager.scrollToPage(homeIndex)
+        if (buttonTransition?.lockCommitted != true) buttonTransition = null
+    }
+    ScreenPositionEffect(
+        rememberPosition = uiState.settings.rememberScreenPosition.takeUnless { uiState.isLoadingSettings || uiState.settingsLoadFailed },
+        preservePosition = {
+            preserveScreenOnReturn() || isSettings || editingHome || editingWidgetScreen || editingHomeContent || systemActionAccess ||
+                overlay is LauncherOverlay.Homepage || overlay is LauncherOverlay.EditPopup ||
+                overlay is LauncherOverlay.AppDetails || overlay is LauncherOverlay.Categories
+        },
+        onReturnHome = { returnHome() },
+    )
     LaunchedEffect(returnHomeRequests) {
-        returnHomeRequests.collect {
-            firstItemJob?.cancel()
-            drawerOpen = false; selectedLetter = null; overlay = null; editingHome = false
-            editingWidgetScreen = false
-            homePager.scrollToPage(homeIndex)
-            if (buttonTransition?.lockCommitted != true) buttonTransition = null
-        }
+        returnHomeRequests.collect { returnHome() }
     }
     LaunchedEffect(widgetEditRequest) {
         if (widgetEditRequest > 0) {
@@ -908,14 +955,18 @@ internal fun LauncherScreen(
     BackHandler(enabled = buttonTransition == null && overlay !is LauncherOverlay.Search && !(overlay == null && drawerOpen)) {
         when {
             overlay != null -> overlay = (overlay as? LauncherOverlay.AppDetails)?.returnTo
-            editingHome -> editingHome = false
+            editingHome -> { editingHome = false; drawerOpen = !homeEnabled }
             editingWidgetScreen -> editingWidgetScreen = false
-            homePager.currentPage != homeIndex -> pageScope.launch { homePager.animateScrollToPage(homeIndex) }
+            homePager.currentPage != homeIndex -> { drawerOpen = !homeEnabled; pageScope.launch { homePager.animateScrollToPage(homeIndex) } }
             selectedLetter != null -> selectedLetter = null
-            else -> drawerOpen = false
+            else -> drawerOpen = !homeEnabled
         }
     }
-    PredictiveBackHandler(enabled = buttonTransition == null && (overlay is LauncherOverlay.Search || (overlay == null && drawerOpen))) { events ->
+    BackHandler(enabled = buttonTransition == null && overlay == null && drawerOpen && !homeEnabled) {
+        selectedLetter = null
+        drawerState.requestScrollToItem(0)
+    }
+    PredictiveBackHandler(enabled = buttonTransition == null && (overlay is LauncherOverlay.Search || (overlay == null && drawerOpen && homeEnabled))) { events ->
         val fromSearch = overlay is LauncherOverlay.Search
         try {
             events.collect { backProgress.snapTo(it.progress) }
@@ -938,7 +989,7 @@ internal fun LauncherScreen(
             buttonTransition = null
             overlay = null
             // Search and lock transitions may now start in the app list; keep that page.
-            if (openingAppList) drawerOpen = false
+            if (openingAppList) drawerOpen = !homeEnabled
         }
     }
 
@@ -967,54 +1018,6 @@ internal fun LauncherScreen(
     val openAppPopup: (LauncherApp, Rect) -> Unit = { app, bounds ->
         if (popupSettings.enabled) overlay = LauncherOverlay.Shortcuts(app, bounds)
     }
-    val openFirstItem: (LauncherApp, Rect) -> Unit = openFirst@{ owner, bounds ->
-        if (firstItemJob?.isActive == true || overlay != null || !popupSettings.swipeLeftToOpenFirst ||
-            (owner.folderId == null && !popupSettings.enabled)) return@openFirst
-        val fromDrawer = drawerOpen
-        firstItemJob = firstItemScope.launch {
-            val custom = latestUiState.popups[owner.key]
-            val needsShortcuts = owner.folderId == null && (custom == null || custom.firstOrNull()?.let {
-                it.widget == null && latestUiState.findItem(it.key) == null
-            } == true)
-            val defaults = if (needsShortcuts) latestActions.shortcuts(owner).asApps(owner).map {
-                latestUiState.findItem(it.key) ?: it
-            } else emptyList()
-            // A cold shortcut lookup must not launch later after HOME, navigation,
-            // disabling the feature, or a profile change has cancelled the intent.
-            val state = latestUiState
-            val currentSettings = state.settings.shortcutsFolders
-            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) || overlay != null || drawerOpen != fromDrawer ||
-                !currentSettings.swipeLeftToOpenFirst || (owner.folderId == null && !currentSettings.enabled)) return@launch
-            val target = state.firstPopupApp(owner, defaults)
-            if (target == null) Toast.makeText(context, R.string.popup_item_unavailable, Toast.LENGTH_SHORT).show()
-            else if (target.folderId != null) state.folders.firstOrNull { it.id == target.folderId }?.let {
-                overlay = LauncherOverlay.Folder(it, bounds)
-            }
-            else latestActions.launchAppAt?.invoke(target, bounds) ?: onLaunchApp(target)
-        }
-    }
-    val rowGestures = AppRowGestures(
-        onPrepare = actions.prepareShortcuts,
-        onLaunchAt = actions.launchAppAt,
-        popupsEnabled = popupSettings.enabled,
-        onOpenFirst = openFirstItem.takeIf { popupSettings.swipeLeftToOpenFirst },
-        onDrag = { app, bounds, expanded ->
-            if (popupSettings.enabled) {
-                val current = overlay as? LauncherOverlay.Shortcuts
-                if (current?.app?.key == app.key) {
-                    current.reveal.expanded = expanded
-                } else {
-                    overlay = LauncherOverlay.Shortcuts(app, bounds, ShortcutRevealState(expanded, dragging = true))
-                }
-            }
-        },
-        onDragEnd = { commit ->
-            (overlay as? LauncherOverlay.Shortcuts)?.reveal?.let {
-                it.expanded = commit
-                it.dragging = false
-            }
-        },
-    )
     val highlightedAppKey = (overlay as? LauncherOverlay.AppDetails)?.app?.key
     val openPrivateSpace: (Rect) -> Unit = { bounds ->
         val fromFavorites = !drawerOpen
@@ -1057,7 +1060,7 @@ internal fun LauncherScreen(
         when (it.id) {
             PrivateSpaceFolderId -> editPrivateSpace()
             WorkProfileFolderId -> overlay = LauncherOverlay.SettingsDestination("WorkProfileEditor")
-            else -> overlay = if (it.isAppStack) LauncherOverlay.FolderSettings(it.id) else LauncherOverlay.AppDetails(uiState.folderItem(it))
+            else -> overlay = if (it.isAppStack || it.isWidgetStack) LauncherOverlay.FolderSettings(it.id) else LauncherOverlay.AppDetails(uiState.folderItem(it))
         }
     }
     val dragFolder: (LauncherFolder, Rect, Boolean) -> Unit = { folder, bounds, expanded ->
@@ -1079,6 +1082,78 @@ internal fun LauncherScreen(
         if (privateAnchor != null) { if (commit) openPrivateSpace(privateAnchor) }
         else (overlay as? LauncherOverlay.Folder)?.reveal?.let { it.expanded = commit; it.dragging = false }
     }
+    val openGesturePopup: (LauncherApp, Rect) -> Boolean = { app, bounds ->
+        if (app.folderId != null) {
+            latestUiState.popupGestureFolder(app)?.let { openFolder(it, bounds); true } ?: false
+        } else if (latestUiState.settings.shortcutsFolders.enabled) {
+            overlay = LauncherOverlay.Shortcuts(app, bounds)
+            true
+        } else false
+    }
+    // Multi-app folder dismissals wait here for the user's answer; a single app clears at once.
+    var pendingDismiss by remember { mutableStateOf<Pair<List<AppNotification>, CompletableDeferred<Boolean>>?>(null) }
+    val executeGesture: (LauncherApp, PopupGesture, Rect, AppNotification?) -> Unit = execute@{ owner, gesture, bounds, notification ->
+        if (popupGestureJob?.isActive == true || overlay != null) return@execute
+        val fromDrawer = drawerOpen
+        val fromPage = homePager.currentPage
+        popupGestureJob = popupGestureScope.launch {
+            performPopupGesture(owner, gesture, notification, state = { latestUiState }, actions = { latestActions },
+                canContinue = {
+                    lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && overlay == null &&
+                        drawerOpen == fromDrawer && homePager.currentPage == fromPage
+                },
+                openPopup = { openGesturePopup(it, bounds) },
+                confirmDismiss = { notifications ->
+                    val answer = CompletableDeferred<Boolean>()
+                    pendingDismiss = notifications to answer
+                    try { answer.await() } finally { pendingDismiss = null }
+                },
+                launchItem = { target ->
+                    if (target.folderId != null) openGesturePopup(target, bounds)
+                    else {
+                        latestActions.launchAppAt?.invoke(target, bounds) ?: onLaunchApp(target)
+                        true
+                    }
+                })
+        }
+    }
+    val dragAppPopup: (LauncherApp, Rect, Boolean) -> Unit = { app, bounds, expanded ->
+        if (latestUiState.settings.shortcutsFolders.enabled) {
+            val current = overlay as? LauncherOverlay.Shortcuts
+            if (current?.app?.key == app.key) current.reveal.expanded = expanded
+            else overlay = LauncherOverlay.Shortcuts(app, bounds, ShortcutRevealState(expanded, dragging = true))
+        }
+    }
+    pendingDismiss?.let { (notifications, answer) ->
+        DismissNotificationsDialog(
+            count = notifications.size,
+            onConfirm = { answer.complete(true) },
+            onDismiss = { answer.complete(false) },
+        )
+    }
+    val rowGestures = AppRowGestures(
+        onPrepare = actions.prepareShortcuts,
+        onLaunchAt = actions.launchAppAt,
+        popupsEnabled = popupSettings.enabled,
+        resolveGesture = { owner, gesture, notification ->
+            uiState.resolvePopupGesture(owner, gesture, notification, actions.cachedShortcuts)
+        },
+        onGesture = executeGesture,
+        onDrag = { app, bounds, expanded ->
+            if (app.folderId != null) latestUiState.popupGestureFolder(app)?.let { dragFolder(it, bounds, expanded) }
+            else dragAppPopup(app, bounds, expanded)
+        },
+        onNotificationDrag = { owner, notification, bounds, expanded ->
+            latestUiState.popupGestureTarget(owner, notification)?.let { dragAppPopup(it.app, bounds, expanded) }
+        },
+        onDragEnd = { commit ->
+            if (overlay is LauncherOverlay.Folder || privateSwipeAnchor != null) endFolderDrag(commit)
+            else (overlay as? LauncherOverlay.Shortcuts)?.reveal?.let {
+                it.expanded = commit
+                it.dragging = false
+            }
+        },
+    )
     val popupReveal = when (val current = overlay) {
         is LauncherOverlay.Shortcuts -> current.reveal
         is LauncherOverlay.Folder -> current.reveal
@@ -1163,11 +1238,11 @@ internal fun LauncherScreen(
             GraceButtonAction.WidgetScreen -> {
                 if (uiState.settings.widgetScreen.enabled) {
                     drawerOpen = false; selectedLetter = null; overlay = null; editingHome = false
-                    pageScope.launch { homePager.animateScrollToPage(1) }
+                    pageScope.launch { homePager.animateScrollToPage(widgetIndex) }
                 } else overlay = LauncherOverlay.SettingsDestination("WidgetScreen")
             }
             GraceButtonAction.Agenda -> {
-                actions.refreshWeather()
+                actions.refreshWeatherIfNeeded()
                 overlay = LauncherOverlay.Agenda
             }
             GraceButtonAction.LockScreen -> {
@@ -1194,7 +1269,8 @@ internal fun LauncherScreen(
       val revealDimAlpha = if (drawerTransition != null && uiState.settings.dimWallpaper)
           uiState.settings.wallpaperDimAmount.coerceIn(0, 100) / 100f else dimAlpha
       Box(Modifier.fillMaxSize().graceReveal(drawerTransition, reveal = true).background(wallpaperTint.copy(alpha = revealDimAlpha)))
-      CompositionLocalProvider(LocalLauncherInputEnabled provides (!fullScreen && !editingHome && backProgress.value == 0f && buttonTransition == null)) {
+      CompositionLocalProvider(LocalFontShadowEnabled provides true,
+          LocalLauncherInputEnabled provides (!fullScreen && !editingHome && backProgress.value == 0f && buttonTransition == null)) {
       BoxWithConstraints(
         // Settings can reveal this retained page during a predictive root back.
         // It remains non-interactive and absent from accessibility while covered.
@@ -1215,16 +1291,33 @@ internal fun LauncherScreen(
         val regularHomeTop = (safeHeight * if (safeHeight < 600.dp) 0.12f else 0.32f).coerceIn(24.dp, 320.dp)
         // Variable sections extend below the clock; they never reposition the home anchor.
         val homeTop = statusBarHeight + regularHomeTop
-        val drawerTop = statusBarHeight + safeHeight * 0.28f
+        // Optionally start the app list where the home content (e.g. the clock) starts.
+        var homeContentTop by remember { mutableStateOf<androidx.compose.ui.unit.Dp?>(null) }
+        val drawerTop = homeContentTop?.takeIf { uiState.settings.listAppearance.appList.alignWithHome }
+            ?.coerceAtLeast(statusBarHeight + 8.dp) ?: (statusBarHeight + safeHeight * 0.28f)
         val alphabet = uiState.settings.listAppearance.alphabet.normalized()
-        val railLayout = alphabet.layout(maxHeight.value, model.letters.size + 1)
+        val railLayout = alphabet.layout(maxHeight.value, model.letters.size + if (homeEnabled) 1 else 0)
 
+        val openAgenda: () -> Unit = {
+            actions.refreshWeatherIfNeeded()
+            overlay = LauncherOverlay.Agenda
+        }
+        val performDateAction: (DateAction) -> Unit = { action ->
+            when (action) {
+                DateAction.Calendar -> if (!openDefaultCalendar(context)) {
+                    Toast.makeText(context, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
+                }
+                DateAction.Agenda -> openAgenda()
+                DateAction.NewEvent -> actions.newEvent()
+                DateAction.NewTask -> actions.newTask()
+            }
+        }
         CompositionLocalProvider(LocalHomeAnimationTarget provides true) {
           HorizontalPager(
             state = homePager, beyondViewportPageCount = 1,
-            userScrollEnabled = !drawerOpen && overlay == null && !editingHome && !editingWidgetScreen && !editingHomeContent &&
+            userScrollEnabled = homeEnabled && !drawerOpen && overlay == null && !editingHome && !editingWidgetScreen && !editingHomeContent &&
                 buttonTransition == null && !systemActionAccess &&
-                (homePager.currentPage != homeIndex || (feedEnabled || (widgetEnabled && uiState.settings.widgetScreen.swipeToOpen))),
+                (homePager.currentPage != homeIndex || feedEnabled || (widgetEnabled && uiState.settings.widgetScreen.swipeToOpen)),
             modifier = Modifier.fillMaxSize().testTag("home_pages")
                 .retainedPage(visible = !drawerOpen || homeVisibility > 0f || drawerTransition != null)
                 .then(if (drawerOpen) Modifier.clearAndSetSemantics {} else Modifier)
@@ -1233,7 +1326,7 @@ internal fun LauncherScreen(
                     translationY = if (drawerTransition != null) 0f else homeLift * pageLiftDistance
                 }
                 .graceReveal(drawerTransition, reveal = false)
-                .then(if (drawerTransition != null) Modifier.background(homeScrim) else Modifier).statusBarContentFade(),
+                .then(if (drawerTransition != null) Modifier.background(homeScrim) else Modifier),
           ) { page ->
            if (feedEnabled && page == 0) {
             CompositionLocalProvider(LocalHomeAnimationTarget provides false) {
@@ -1252,17 +1345,17 @@ internal fun LauncherScreen(
                  modifier = Modifier.fillMaxSize()
              )
             }
-           } else if (page == homeIndex) {
+           } else if (page == homeIndex && (homeEnabled || editingHome)) {
             HomeScreen(
                 uiState = uiState,
                 topSpace = homeTop,
+                onContentTop = { homeContentTop = it },
                 onLaunchApp = onLaunchApp,
                 onAppDetails = { overlay = LauncherOverlay.AppDetails(it) },
                 onAppShortcuts = openAppPopup,
-                onDateClick = {
-                    actions.refreshWeather()
-                    overlay = LauncherOverlay.Agenda
-                },
+                onDateClick = openAgenda,
+                onCalendarClick = { performDateAction(uiState.settings.calendar.dateTapAction) },
+                onCalendarLongClick = { performDateAction(uiState.settings.calendar.dateLongPressAction) },
                 onClockClick = onClockClick,
                 onWeatherClick = actions.openWeatherApp,
                 onWidgetMenu = { overlay = LauncherOverlay.HomeWidgetMenu },
@@ -1292,7 +1385,7 @@ internal fun LauncherScreen(
                 onGraceButtonGesture = { gesture, origin -> performGestureAction(uiState.settings.graceButton.target(gesture), origin) },
                 modifier = Modifier.fillMaxSize(),
             )
-           } else {
+           } else if (page == widgetIndex && widgetEnabled) {
             CompositionLocalProvider(LocalHomeAnimationTarget provides false) {
             WidgetScreen(uiState, actions, statusBarHeight, bottomInset, editingWidgetScreen,
                 enabled = !drawerOpen && overlay == null && !systemActionAccess && buttonTransition == null &&
@@ -1312,7 +1405,11 @@ internal fun LauncherScreen(
             model = model,
             folderApps = (uiState.folders + listOfNotNull(workFolder, privateFolder, recentFolder)).associate { it.id to uiState.folderItem(it) },
             notificationsFor = { uiState.notificationPreviewsFor(it) },
-            appStackContent = { stack -> AppStack(stack, uiState,
+            appStackContent = { stack -> if (stack.isWidgetStack) rikazzz.everythinglauncher.ui.widgets.WidgetStack(stack, uiState,
+                enabled = drawerOpen && overlay == null && !systemActionAccess && buttonTransition == null,
+                onLongPress = { editFolder(stack) }, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            else AppStack(stack, uiState,
+                gestures = rowGestures,
                 onLaunch = { app, bounds -> actions.launchAppAt?.invoke(app, bounds) ?: onLaunchApp(app) },
                 onDetails = { overlay = LauncherOverlay.AppDetails(it, fromAppList = true) }, onEdit = { editFolder(stack) },
                 modifier = Modifier.padding(horizontal = (8f - rikazzz.everythinglauncher.data.AppStackInset).dp, vertical = 4.dp)) },
@@ -1363,6 +1460,7 @@ internal fun LauncherScreen(
         )
         val showHomeAlphabet = alphabet.showsOnHome(uiState.settings.hideAlphabet)
         if (!editingHome) AlphabetRail(
+            includeHome = homeEnabled,
             enabled = !homePager.isScrollInProgress && !editingWidgetScreen && !editingHomeContent && homePager.currentPage == homeIndex,
             alphabet = alphabet,
             leftTouchEnabled = uiState.settings.listAppearance.leftAlphabet,
@@ -1374,7 +1472,7 @@ internal fun LauncherScreen(
             touchHeight = maxHeight,
             onLetterSelected = { letter ->
                 if (letter == null) {
-                    drawerOpen = false
+                    drawerOpen = !homeEnabled
                     selectedLetter = null
                 } else {
                     selectedLetter = letter

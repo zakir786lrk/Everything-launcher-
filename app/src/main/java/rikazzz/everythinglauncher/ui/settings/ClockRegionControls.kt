@@ -3,7 +3,9 @@
 package rikazzz.everythinglauncher.ui.settings
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListScope
@@ -11,7 +13,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -26,6 +30,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -45,6 +50,8 @@ internal fun LazyListScope.clockRegionSettings(
     regions: ClockRegions,
     enabled: Boolean,
     hapticsEnabled: Boolean,
+    expandedGroups: Set<String>,
+    onToggleGroup: (String) -> Unit,
     onChange: ((ClockRegions) -> ClockRegions) -> Unit,
     onFont: (ClockElement) -> Unit,
     onWeatherIcons: () -> Unit,
@@ -52,10 +59,14 @@ internal fun LazyListScope.clockRegionSettings(
     onAgendaContent: () -> Unit,
     onTaskContent: () -> Unit,
     onRegionFont: (ClockRegion) -> Unit,
+    onShadow: (ClockRegion) -> Unit,
 ) {
     fun group(region: ClockRegion, controls: List<ClockControl>) {
-        item("clock_region_heading:$region") { SettingsHeading(region.label()) }
-        controls.forEachIndexed { index, control ->
+        val expanded = region.name in expandedGroups
+        clockSetting("clock_region_heading:$region") {
+            ClockGroupHeading(region.label(), expanded, enabled, "clock_region_heading:$region") { onToggleGroup(region.name) }
+        }
+        if (expanded) controls.forEachIndexed { index, control ->
             clockSetting("clock_region:$region:${control.key}") { control.content(index, controls.size) }
         }
     }
@@ -108,21 +119,21 @@ internal fun LazyListScope.clockRegionSettings(
                     onSelect = { stacked -> onChange { it.copy(stackedClock = stacked) } })
             }
         }
-        if (primary == ClockElement.Clock && !regions.stackedClock) primaryControls += ClockControl("seconds") { index, count ->
+        if (primary == ClockElement.Clock) primaryControls += ClockControl("seconds") { index, count ->
             SettingsToggleItem(stringResource(R.string.clock_show_seconds), null, face.showSeconds,
                 index, count, "clock_show_seconds", enabled) { value -> changeFace(primary) { it.copy(showSeconds = value) } }
         }
-        if (primary == ClockElement.Clock && regions.stackedClock) {
+        if (primary == ClockElement.Clock) {
             primaryControls += ClockControl("equal_width") { index, count ->
-                SettingsToggleItem(stringResource(R.string.clock_equal_width_characters), null, face.equalWidthDigits,
+                SettingsToggleItem(stringResource(R.string.clock_equal_width_characters), null, face.equalWidthDigits(regions.stackedClock),
                     index, count, "clock_equal_width_characters", enabled) { value ->
-                    changeFace(primary) { it.copy(equalWidthDigits = value) }
+                    changeFace(primary) { it.withEqualWidthDigits(regions.stackedClock, value) }
                 }
             }
-            if (face.equalWidthDigits) primaryControls += ClockControl("center_characters") { index, count ->
-                SettingsToggleItem(stringResource(R.string.clock_center_characters), null, face.centerDigits,
+            if (face.equalWidthDigits(regions.stackedClock)) primaryControls += ClockControl("center_characters") { index, count ->
+                SettingsToggleItem(stringResource(R.string.clock_center_characters), null, face.centerDigits(regions.stackedClock),
                     index, count, "clock_center_characters", enabled) { value ->
-                    changeFace(primary) { it.copy(centerDigits = value) }
+                    changeFace(primary) { it.withCenterDigits(regions.stackedClock, value) }
                 }
             }
         }
@@ -139,6 +150,20 @@ internal fun LazyListScope.clockRegionSettings(
         primaryControls += ClockControl("size") { index, count ->
             ClockSlider(stringResource(R.string.clock_size), face.size, defaults.size, 32..144, 1,
                 index, count, "clock_size", enabled) { value -> changeFace(primary) { it.copy(size = value) } }
+        }
+        if (primary == ClockElement.Clock) {
+            primaryControls += ClockControl("minute_scale") { index, count ->
+                ClockSlider(stringResource(R.string.clock_minute_scale), face.minuteScale, 100, 20..150, 1,
+                    index, count, "clock_minute_scale", enabled, valueLabel = "${face.minuteScale}%") { value ->
+                    changeFace(primary) { it.copy(minuteScale = value) }
+                }
+            }
+            if (face.showSeconds) primaryControls += ClockControl("second_scale") { index, count ->
+                ClockSlider(stringResource(R.string.clock_second_scale), face.secondScale, 100, 20..150, 1,
+                    index, count, "clock_second_scale", enabled, valueLabel = "${face.secondScale}%") { value ->
+                    changeFace(primary) { it.copy(secondScale = value) }
+                }
+            }
         }
         primaryControls += ClockControl("weight") { index, count ->
             ClockSlider(stringResource(R.string.clock_weight), face.weight, defaults.weight,
@@ -159,8 +184,9 @@ internal fun LazyListScope.clockRegionSettings(
             }
         }
         primaryControls += ClockControl("shadow") { index, count ->
-            ClockSlider(stringResource(R.string.clock_font_shadow), face.fontShadow, defaults.fontShadow,
-                0..24, 1, index, count, "clock_font_shadow", enabled) { value -> changeFace(primary) { it.copy(fontShadow = value) } }
+            FontShadowOverrideItem(face.shadow, index, count, "clock_font_shadow", enabled,
+                onToggle = { value -> changeFace(primary) { it.copy(shadow = it.shadow.copy(enabled = value)) } },
+                onOpen = { onShadow(ClockRegion.Primary) })
         }
         if (primary == ClockElement.Clock) {
             primaryControls += ClockControl("leading_zero") { index, count ->
@@ -230,10 +256,9 @@ internal fun LazyListScope.clockRegionSettings(
                 }
             }
             controls += ClockControl("shadow") { index, count ->
-                ClockSlider(stringResource(R.string.clock_font_shadow), row.typography.fontShadow, defaults.fontShadow, 0..24, 1,
-                    index, count, "${prefix}_font_shadow", enabled) { value ->
-                    changeRow { it.copy(typography = it.typography.copy(fontShadow = value)) }
-                }
+                FontShadowOverrideItem(row.typography.shadow, index, count, "${prefix}_font_shadow", enabled,
+                    onToggle = { value -> changeRow { it.copy(typography = it.typography.copy(
+                        shadow = it.typography.shadow.copy(enabled = value))) } }, onOpen = { onShadow(region) })
             }
         }
         if (ClockElement.Clock in row.selected) {
@@ -274,6 +299,12 @@ internal fun LazyListScope.clockRegionSettings(
         SettingsActionItem(stringResource(R.string.clock_agenda_contents), null,
             index, count, "clock_agenda_contents", enabled = enabled, onClick = onAgendaContent)
     })
+    if (ClockAgendaField.Date in agenda.selected) agendaControls += ClockControl("relative_dates") { index, count ->
+        SettingsToggleItem(stringResource(R.string.clock_use_relative_dates), stringResource(R.string.clock_use_relative_dates_summary),
+            agenda.useRelativeDates, index, count, "clock_agenda_relative_dates", enabled) { value ->
+            changeAgenda { it.copy(useRelativeDates = value) }
+        }
+    }
     agendaControls += ClockControl("event_count") { index, count ->
         ClockSlider(stringResource(R.string.clock_agenda_event_count), agenda.eventCount, 1, 0..9, 1,
             index, count, "clock_agenda_event_count", enabled,
@@ -305,10 +336,9 @@ internal fun LazyListScope.clockRegionSettings(
             }
         }
         agendaControls += ClockControl("shadow") { index, count ->
-            ClockSlider(stringResource(R.string.clock_font_shadow), agenda.typography.fontShadow, defaults.fontShadow, 0..24, 1,
-                index, count, "clock_agenda_font_shadow", enabled) { value ->
-                changeAgenda { it.copy(typography = it.typography.copy(fontShadow = value)) }
-            }
+            FontShadowOverrideItem(agenda.typography.shadow, index, count, "clock_agenda_font_shadow", enabled,
+                onToggle = { value -> changeAgenda { it.copy(typography = it.typography.copy(
+                    shadow = it.typography.shadow.copy(enabled = value))) } }, onOpen = { onShadow(ClockRegion.Agenda) })
         }
     }
     if (ClockAgendaField.Date in agenda.selected) agendaControls += ClockControl("latin_letters") { index, count ->
@@ -325,6 +355,14 @@ internal fun LazyListScope.clockRegionSettings(
         SettingsActionItem(stringResource(R.string.clock_task_contents), null,
             index, count, "clock_task_contents", enabled = enabled, onClick = onTaskContent)
     })
+    if (ClockTaskField.DueDate in tasks.selected || ClockTaskField.StartDate in tasks.selected) {
+        taskControls += ClockControl("relative_dates") { index, count ->
+            SettingsToggleItem(stringResource(R.string.clock_use_relative_dates), stringResource(R.string.clock_use_relative_dates_summary),
+                tasks.useRelativeDates, index, count, "clock_task_relative_dates", enabled) { value ->
+                changeTasks { it.copy(useRelativeDates = value) }
+            }
+        }
+    }
     taskControls += ClockControl("task_count") { index, count ->
         ClockSlider(stringResource(R.string.clock_task_count), tasks.taskCount, 1, 0..9, 1,
             index, count, "clock_task_count", enabled,
@@ -354,10 +392,9 @@ internal fun LazyListScope.clockRegionSettings(
             }
         }
         taskControls += ClockControl("shadow") { index, count ->
-            ClockSlider(stringResource(R.string.clock_font_shadow), tasks.typography.fontShadow, defaults.fontShadow, 0..24, 1,
-                index, count, "clock_task_font_shadow", enabled) { value ->
-                changeTasks { it.copy(typography = it.typography.copy(fontShadow = value)) }
-            }
+            FontShadowOverrideItem(tasks.typography.shadow, index, count, "clock_task_font_shadow", enabled,
+                onToggle = { value -> changeTasks { it.copy(typography = it.typography.copy(
+                    shadow = it.typography.shadow.copy(enabled = value))) } }, onOpen = { onShadow(ClockRegion.Task) })
         }
     }
     if (ClockTaskField.DueDate in tasks.selected || ClockTaskField.StartDate in tasks.selected) {
@@ -368,8 +405,14 @@ internal fun LazyListScope.clockRegionSettings(
     }
     group(ClockRegion.Task, taskControls)
 
-    item("clock_layout_heading") { SettingsHeading(stringResource(R.string.clock_layout_section)) }
-    val layoutCount = 5
+    val layoutExpanded = "Layout" in expandedGroups
+    clockSetting("clock_layout_heading") {
+        ClockGroupHeading(stringResource(R.string.clock_layout_section), layoutExpanded, enabled, "clock_layout_heading") {
+            onToggleGroup("Layout")
+        }
+    }
+    if (!layoutExpanded) return
+    val layoutCount = 6
     clockSetting("clock_region_order") {
         ClockControlSegment(0, layoutCount, "clock_region_order") {
             Column {
@@ -387,30 +430,55 @@ internal fun LazyListScope.clockRegionSettings(
             onChange { it.copy(regionSpacing = value) }
         }
     }
+    clockSetting("clock_bottom_padding") {
+        ClockSlider(stringResource(R.string.clock_bottom_padding), regions.bottomPadding, ClockRegions().bottomPadding,
+            0..64, 1, 2, layoutCount, "clock_bottom_padding", enabled,
+            valueLabel = stringResource(R.string.lab_dp, regions.bottomPadding)) { value ->
+            onChange { it.copy(bottomPadding = value) }
+        }
+    }
     clockSetting("clock_rotate_above_primary") {
         SettingsToggleItem(stringResource(R.string.clock_rotate_above_primary), null, regions.rotateAbovePrimary,
-            2, layoutCount, "clock_rotate_above_primary", enabled) { checked ->
+            3, layoutCount, "clock_rotate_above_primary", enabled) { checked ->
             onChange { it.copy(rotateAbovePrimary = checked) }
         }
     }
     clockSetting("clock_rotate_primary") {
         SettingsToggleItem(stringResource(R.string.clock_rotate_primary), null, regions.rotatePrimary,
-            3, layoutCount, "clock_rotate_primary", enabled) { checked ->
+            4, layoutCount, "clock_rotate_primary", enabled) { checked ->
             onChange { it.copy(rotatePrimary = checked) }
         }
     }
     clockSetting("clock_rotate_all") {
         SettingsToggleItem(stringResource(R.string.clock_rotate_all), null, regions.rotateAll,
-            4, layoutCount, "clock_rotate_all", enabled) { checked ->
+            5, layoutCount, "clock_rotate_all", enabled) { checked ->
             onChange { it.copy(rotateAll = checked) }
         }
     }
 }
 
 @Composable
-internal fun ClockControlSegment(index: Int, count: Int, tag: String, content: @Composable () -> Unit) {
+private fun ClockGroupHeading(title: String, expanded: Boolean, enabled: Boolean, tag: String, onToggle: () -> Unit) {
+    val angle by animateFloatAsState(if (expanded) 180f else 0f,
+        MaterialTheme.motionScheme.fastSpatialSpec(), label = "clockGroupChevron")
+    val action = stringResource(if (expanded) R.string.clock_collapse_group else R.string.clock_expand_group)
+    val state = stringResource(if (expanded) R.string.widget_group_expanded else R.string.widget_group_collapsed)
+    Row(Modifier.fillMaxWidth().padding(top = 16.dp).clip(MaterialTheme.shapes.small)
+        .clickable(enabled = enabled, role = Role.Button, onClickLabel = action, onClick = onToggle)
+        .heightIn(min = 40.dp).padding(start = 4.dp, end = 8.dp).testTag(tag)
+        .semantics { heading(); stateDescription = state }, verticalAlignment = Alignment.CenterVertically) {
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Icon(painterResource(R.drawable.ms_expand_more), contentDescription = null,
+            modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = angle }, tint = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
+internal fun ClockControlSegment(index: Int, count: Int, tag: String,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceBright, content: @Composable () -> Unit,
+) {
     SegmentedListItem(shapes = ListItemDefaults.segmentedShapes(index, count),
-        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceBright),
+        colors = ListItemDefaults.segmentedColors(containerColor = containerColor),
         modifier = Modifier.testTag(tag), content = content)
 }
 
