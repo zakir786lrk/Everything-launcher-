@@ -560,6 +560,7 @@ internal fun HomeScreen(
                     FolderRow(
                         folder = overflowFolder,
                         app = overflowFolder.asApp(),
+                        modifier = Modifier.padding(horizontal = uiState.settings.listAppearance.horizontalPadding),
                         onOpen = { bounds -> onOpenFolder(overflowFolder, bounds) },
                         onLongClick = null,
                         onDrag = { bounds, expanded -> onFolderDrag(overflowFolder, bounds, expanded) },
@@ -594,12 +595,13 @@ internal fun HomeScreen(
             modifier = Modifier.padding(horizontal = uiState.settings.listAppearance.horizontalPadding)
                 .offset(y = (if (baselineIndex >= 0) baselineTop else resolvedTop) - 20.dp))
 
-        // Fixed bottom dock with apps + Grace button (up to 5 grids, center-aligned)
+        // Fixed bottom dock with apps + Everything button (up to 5 slots, aligned with home column)
         if (!editingLayout && fixedDockStack != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .padding(horizontal = uiState.settings.listAppearance.horizontalPadding)
                     .padding(bottom = bottomInset + 8.dp)
                     .zIndex(3f),
                 contentAlignment = Alignment.Center
@@ -611,6 +613,7 @@ internal fun HomeScreen(
                     onAppDetails = onAppDetails,
                     onEditFolder = { onEditFolder(fixedDockStack) },
                     onGraceGesture = onGraceButtonGesture,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
@@ -822,7 +825,7 @@ private fun FixedDock(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val customPrefs = remember(context) { LauncherCustomPreferences(context) }
+    val customPrefs = remember(context) { LauncherCustomPreferences.getInstance(context) }
     val showLabels = customPrefs.stackLabelsEnabled
     val appearance = LocalLauncherAppearance.current
     val displayedIconSize = 40.dp * (appearance.iconSize / 100f)
@@ -855,14 +858,13 @@ private fun FixedDock(
         Modifier
             .clip(RoundedCornerShape(displayedIconSize / 2 + 12.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.25f))
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .padding(horizontal = AppStackInset.dp, vertical = 6.dp)
     } else {
-        Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+        Modifier.padding(horizontal = AppStackInset.dp, vertical = 4.dp)
     }
 
     Box(
         modifier = modifier
-            .wrapContentWidth()
             .then(dockBgModifier)
             .combinedClickable(
                 onClick = {},
@@ -871,7 +873,8 @@ private fun FixedDock(
         contentAlignment = Alignment.Center
     ) {
         Row(
-            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             slots.forEach { slot ->
@@ -882,7 +885,7 @@ private fun FixedDock(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
-                                .width(displayedIconSize + 16.dp)
+                                .weight(1f)
                                 .padding(horizontal = 2.dp)
                         ) {
                             Box(
@@ -913,7 +916,7 @@ private fun FixedDock(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
-                                .width(displayedIconSize + 16.dp)
+                                .weight(1f)
                                 .padding(horizontal = 2.dp)
                         ) {
                             GraceButton(
